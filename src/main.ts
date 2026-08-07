@@ -3,12 +3,12 @@
 // Pure Canvas 2D, SUNO Bookmarklet Lyric Shooter
 // =============================================
 
-import { parseSRT, parseLRC, parseAnyLyrics } from './srtParser';
+import { parseSRT, parseLRC, parseAnyLyrics, isStylePromptLine } from './srtParser';
 import { AudioEngine } from './audioEngine';
 import { Renderer } from './renderer';
 import { GameState } from './gameState';
 
-const APP_VERSION = 'v2.1.3';
+const APP_VERSION = 'v2.1.4';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d', { alpha: false })!;
@@ -54,8 +54,9 @@ const urlLyrics = params.get('lyrics');
 
 if (urlAudio) {
   state.setLyrics([]);
-  const titleWords = urlTitle.split(/[\s,._\-／/]+/).filter(w => w.length > 0);
-  state.setCustomWords(titleWords);
+  const rawWords = urlTitle.split(/[\s,._\-／/]+/).filter(w => w.length > 1);
+  const cleanTitleWords = rawWords.filter(w => !isStylePromptLine(w));
+  state.setCustomWords(cleanTitleWords);
 }
 
 if (urlLyrics) {

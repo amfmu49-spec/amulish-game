@@ -1,5 +1,4 @@
-// GameState - all game logic, zero rendering
-import type { LyricLine } from './srtParser';
+import { type LyricLine, isStylePromptLine, cleanLyricsText } from './srtParser';
 import type { AudioEngine } from './audioEngine';
 
 const FONTS = [
@@ -118,7 +117,7 @@ export class GameState {
   }
 
   setAudio(a: AudioEngine) { this.audio = a; }
-  setLyrics(l: LyricLine[]) { this.lyrics = l; this.lyricIdx = 0; }
+  setLyrics(l: LyricLine[]) { this.lyrics = l.filter(line => !isStylePromptLine(line.text)); this.lyricIdx = 0; }
   syncTime(ms: number) { this.timeMs = ms; }
 
   startGame() {
@@ -131,6 +130,7 @@ export class GameState {
     this.lyricIdx = 0; this.timeMs = 0; this.lyricTimeOffset = 0;
     this.fireTimer = 0; this.enemyFireTimer = 0;
     this.lastFallbackSpawn = -999999;
+    this.spawnTimer = 0;
     this.px = this.W / 2; this.py = this.H * 0.75;
   }
 
@@ -231,7 +231,9 @@ export class GameState {
   }
 
   customWords: string[] = [];
-  setCustomWords(words: string[]) { this.customWords = words; }
+  setCustomWords(words: string[]) {
+    this.customWords = words.filter(w => !isStylePromptLine(w));
+  }
 
   private spawnTimer = 0;
 
@@ -239,8 +241,9 @@ export class GameState {
     if (this.lyrics.length === 0) {
       this.spawnTimer -= dt;
       if (this.spawnTimer <= 0) {
-        const pool = this.customWords.length > 0
-          ? [...this.customWords, 'AMULISH', 'FEVER', 'BEAT', 'SONIC', '爆発', '電撃', 'RHYTHM', 'OVERDRIVE', '極限', '覇道']
+        const cleanCustom = this.customWords.filter(w => w && !isStylePromptLine(w));
+        const pool = cleanCustom.length > 0
+          ? [...cleanCustom, 'AMULISH', 'FEVER', 'BEAT', 'SONIC', '爆発', '電撃', 'RHYTHM', 'OVERDRIVE', '極限', '覇道']
           : ['AMULISH', 'FEVER', 'BEAT', 'COMBO', 'SONIC', 'RHYTHM', 'BLAZE', 'NOVA', '爆発', '電撃', '嵐', '覇道', '狂乱', '轟音'];
         const word = pool[Math.floor(Math.random() * pool.length)];
         this._spawnEnemy(word);
@@ -267,13 +270,13 @@ export class GameState {
   }
 
   private _spawnEnemy(text: string) {
-    const t = text.trim();
-    if (!t) return;
+    const cleaned = cleanLyricsText(text).trim();
+    if (!cleaned || isStylePromptLine(cleaned)) return;
 
     const chars: Char[] = [];
     let curX = 0, maxH = 0;
 
-    for (const ch of t) {
+    for (const ch of cleaned) {
       const fontSize = 34 + Math.random() * 22;   // 34–56px (bigger minimum)
       const font = FONTS[Math.floor(Math.random() * FONTS.length)];
       const pal = PALETTES[Math.floor(Math.random() * PALETTES.length)];
