@@ -50,19 +50,32 @@ export function parseLRC(raw: string): LyricLine[] {
 
 export function parseRawText(raw: string): LyricLine[] {
   const lines: LyricLine[] = [];
-  const rows = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+  const rawRows = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
     .map(s => s.trim())
-    .filter(s => s.length > 0 && !s.startsWith('[Verse') && !s.startsWith('[Chorus') && !s.startsWith('[Bridge'));
+    .filter(s => s.length > 0 && !/^\[.*\]$/.test(s) && !/^\(.*\)$/.test(s));
 
-  let time = 1200;
-  for (let i = 0; i < rows.length; i++) {
+  const phrases: string[] = [];
+  for (const row of rawRows) {
+    if (row.length > 14) {
+      const sub = row.split(/[、,。.！!？?\s]+/).filter(s => s.length > 0);
+      if (sub.length > 0) phrases.push(...sub);
+      else phrases.push(row);
+    } else {
+      phrases.push(row);
+    }
+  }
+
+  let time = 1000;
+  for (let i = 0; i < phrases.length; i++) {
+    const text = phrases[i].trim();
+    if (!text) continue;
     lines.push({
       id: 'raw_' + i + '_' + Math.random(),
       time,
-      end: time + 2500,
-      text: rows[i],
+      end: time + 3000,
+      text,
     });
-    time += 2400; // spawn a line block every 2.4 seconds
+    time += 2000; // Spawns next phrase every 2 seconds
   }
   return lines;
 }
