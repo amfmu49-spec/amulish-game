@@ -230,11 +230,16 @@ export class GameState {
     if (this.enemyBullets.length > 30) this.enemyBullets.splice(0, this.enemyBullets.length - 30);
   }
 
+  customWords: string[] = [];
+  setCustomWords(words: string[]) { this.customWords = words; }
+
   private _spawnLyrics() {
     if (this.lyrics.length === 0) {
-      if (this.timeMs - this.lastFallbackSpawn > 2200) {
-        const words = ['AMULISH','FEVER','BEAT','COMBO','SONIC','RHYTHM','BLAZE','NOVA','爆発','電撃','嵐','覇道','狂乱','轟音'];
-        this._spawnEnemy(words[Math.floor(Math.random() * words.length)]);
+      if (this.timeMs - this.lastFallbackSpawn > 1800) {
+        const pool = this.customWords.length > 0
+          ? [...this.customWords, 'AMULISH', 'FEVER', 'BEAT', 'SONIC', '爆発', '電撃', 'RHYTHM']
+          : ['AMULISH', 'FEVER', 'BEAT', 'COMBO', 'SONIC', 'RHYTHM', 'BLAZE', 'NOVA', '爆発', '電撃', '嵐', '覇道', '狂乱', '轟音'];
+        this._spawnEnemy(pool[Math.floor(Math.random() * pool.length)]);
         this.lastFallbackSpawn = this.timeMs;
       }
       return;

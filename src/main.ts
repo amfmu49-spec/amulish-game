@@ -268,10 +268,19 @@ function buildUI() {
   `;
   document.body.appendChild(overlay);
 
-  // Load first preset by default
-  const firstPreset = PRESETS[0];
-  state.setLyrics(firstPreset.lyrics);
-  audio.setPresetBeat(firstPreset.bpm);
+  // Only load default preset if no SUNO URL audio was passed in
+  if (!urlAudio) {
+    const firstPreset = PRESETS[0];
+    state.setLyrics(firstPreset.lyrics);
+    audio.setPresetBeat(firstPreset.bpm);
+  } else {
+    if (!params.get('srt')) {
+      state.setLyrics([]);
+    }
+    // Extract words from SUNO title to use as kinetic enemy lyrics
+    const titleWords = urlTitle.split(/[\s,._\-／/]+/).filter(w => w.length > 0);
+    state.setCustomWords(titleWords);
+  }
 
   // Bookmarklet copy
   document.getElementById('bm-copy')!.addEventListener('click', async () => {
@@ -326,6 +335,7 @@ function buildUI() {
   if (urlAudio) {
     const box = document.querySelector('.bm-box')!;
     box.innerHTML = `<div class="bm-title">🎵 SUNO曲を読み込み中...</div><div class="bm-desc">${urlTitle}</div>`;
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
   }
 }
 
