@@ -8,7 +8,7 @@ import { AudioEngine } from './audioEngine';
 import { Renderer } from './renderer';
 import { GameState } from './gameState';
 
-const APP_VERSION = 'v2.2.1';
+const APP_VERSION = 'v2.2.2';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d', { alpha: false })!;
@@ -161,12 +161,8 @@ canvas.addEventListener('mouseup', onEnd);
 // ---- SUNO Lyric-Extraction Bookmarklet ----
 const DEPLOY_URL = `https://amfmu49-spec.github.io/amulish-game/`;
 
-// Bookmarklet: parse __NEXT_DATA__ script tag → DOM element with most newlines
-const BOOKMARKLET = (() => {
-  const base = DEPLOY_URL;
-  // Keep under ~1.5KB to ensure all browsers execute it
-  return `javascript:(function(){var s='',a=document.querySelector('audio');if(a&&a.src&&!a.src.startsWith('blob:'))s=a.src;var m=(location.href+'|'+(a&&a.src||'')).match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);if(m)s='https://cdn1.suno.ai/'+m[1]+'.mp3';if(!s){alert('SUNO\u306e\u66f2\u30da\u30fc\u30b8\u3067\u5b9f\u884c\u3057\u3066\u306d');return;}var L='';try{var nd=JSON.parse(document.getElementById('__NEXT_DATA__').textContent);var pp=nd.props.pageProps;var c=pp.clip||pp.initialClip||pp.song||pp.initialData||{};L=(c.lyrics||c.metadata&&c.metadata.lyrics||'').trim();}catch(e){}if(!L){var bn=0;document.querySelectorAll('div,pre,p,section').forEach(function(el){if(el.childElementCount>8)return;var t=(el.innerText||'').trim();var n=(t.match(/\n/g)||[]).length;if(n>bn&&t.length>80&&t.length<4000){bn=n;L=t;}});}var tt=(document.title||'').replace(/[|\u2013\-].*/,'').trim()||'SUNO';var u='${base}?audio='+encodeURIComponent(s)+'&title='+encodeURIComponent(tt);if(L)u+='&lyrics='+encodeURIComponent(L.substring(0,3000));window.open(u,'_blank');})();`;
-})();
+// Bookmarklet using external loader (identical pattern to AMUVI for maximum reliability and API fetching)
+const BOOKMARKLET = `javascript:(function(){var s=document.createElement('script');s.src='https://amfmu49-spec.github.io/amulish-game/bookmarklet.js?t='+Date.now();document.body.appendChild(s);})();`;
 
 // ---- UI builder ----
 function buildUI() {
