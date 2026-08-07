@@ -98,17 +98,17 @@ export class GameState {
   setDifficulty(d: 'EASY' | 'NORMAL' | 'HARD') {
     this.difficulty = d;
     if (d === 'EASY') {
-      this.ENEMY_FIRE_MS = 1400;
-      this.ENEMY_MAX_SHOOTERS = 1;
-      this.ENEMY_BASE_BULLETS = 1;
+      this.ENEMY_FIRE_MS = 1400;        // 1.4s between shots (slow & relaxing)
+      this.ENEMY_MAX_SHOOTERS = 1;        // 1 enemy shoots
+      this.ENEMY_BASE_BULLETS = 1;        // 1 straight bullet
     } else if (d === 'NORMAL') {
-      this.ENEMY_FIRE_MS = 550;
-      this.ENEMY_MAX_SHOOTERS = 3;
-      this.ENEMY_BASE_BULLETS = 2;
+      this.ENEMY_FIRE_MS = 950;         // 0.95s (comfortable & fun)
+      this.ENEMY_MAX_SHOOTERS = 2;        // 2 enemies shoot
+      this.ENEMY_BASE_BULLETS = 1;        // gentle 1-2 bullets
     } else {
-      this.ENEMY_FIRE_MS = 280;
-      this.ENEMY_MAX_SHOOTERS = 5;
-      this.ENEMY_BASE_BULLETS = 3;
+      this.ENEMY_FIRE_MS = 450;         // 0.45s (intense danmaku)
+      this.ENEMY_MAX_SHOOTERS = 4;        // 4 enemies shoot
+      this.ENEMY_BASE_BULLETS = 3;        // 3-5 way fan bullets
     }
   }
 
