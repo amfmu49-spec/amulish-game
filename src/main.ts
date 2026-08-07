@@ -1,5 +1,5 @@
 // =============================================
-// AMULISH - Lyric Shooter Game v2.1.0
+// AMULISH - Lyric Shooter Game v2.1.2
 // Pure Canvas 2D, SUNO Bookmarklet Lyric Shooter
 // =============================================
 
@@ -8,7 +8,7 @@ import { AudioEngine } from './audioEngine';
 import { Renderer } from './renderer';
 import { GameState } from './gameState';
 
-const APP_VERSION = 'v2.1.0';
+const APP_VERSION = 'v2.1.2';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d', { alpha: false })!;
