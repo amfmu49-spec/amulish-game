@@ -1,5 +1,5 @@
 // =============================================
-// AMULISH - Lyric Shooter Game
+// AMULISH - Lyric Shooter Game v1.2.0
 // Pure Canvas 2D, no frameworks, max performance
 // =============================================
 
@@ -7,7 +7,8 @@ import { parseSRT, parseLRC } from './srtParser';
 import { AudioEngine } from './audioEngine';
 import { Renderer } from './renderer';
 import { GameState } from './gameState';
-import { PRESETS } from './presets';
+
+const APP_VERSION = 'v1.2.0';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d', { alpha: false })!;
@@ -38,18 +39,26 @@ window.addEventListener('resize', resize);
 const params = new URLSearchParams(location.search);
 const urlAudio = params.get('audio');
 const urlTitle = params.get('title') || 'SUNO Track';
+
 if (urlAudio) {
-  audio.loadMusic(urlAudio);
-  // Try to get SRT from URL param too
+  state.setLyrics([]);
+  const titleWords = urlTitle.split(/[\s,._\-／/]+/).filter(w => w.length > 0);
+  state.setCustomWords(titleWords);
+}
+
+// ---- Build UI ----
+buildUI();
+
+if (urlAudio) {
+  audio.loadMusic(urlAudio, (pct) => {
+    updateAudioProgress(pct);
+  });
   const urlSrt = params.get('srt');
   if (urlSrt) {
     const lrc = parseLRC(decodeURIComponent(urlSrt));
     state.setLyrics(lrc);
   }
 }
-
-// ---- Build UI ----
-buildUI();
 
 // ---- Audio time sync ----
 audio.setOnTime(t => state.syncTime(t));
@@ -87,7 +96,6 @@ canvas.addEventListener('mousemove', e => onMove(e.clientX, e.clientY));
 canvas.addEventListener('mouseup', onEnd);
 
 // ---- Bookmarklet code ----
-// This bookmarklet runs on suno.com, extracts the audio src, and opens AMULISH with it
 const DEPLOY_URL = `https://amfmu49-spec.github.io/amulish-game/`;
 const BOOKMARKLET = `javascript:(function(){var a=document.querySelector('audio');if(!a||!a.src){alert('❌ SUNOで曲を再生してから押してください');return;}var t=document.title.replace(' | Suno','').trim();window.open('${DEPLOY_URL}?audio='+encodeURIComponent(a.src)+'&title='+encodeURIComponent(t),'_blank');})();`;
 
@@ -105,22 +113,61 @@ function buildUI() {
       }
       #ui-panel {
         pointer-events: auto;
-        background: rgba(0,0,16,0.93);
-        backdrop-filter: blur(16px);
-        border: 1px solid rgba(0,243,255,0.35);
+        background: rgba(0,0,16,0.94);
+        backdrop-filter: blur(18px);
+        border: 1px solid rgba(0,243,255,0.4);
         border-radius: 24px;
         padding: 24px 20px 20px;
         display: flex; flex-direction: column; align-items: center;
         gap: 14px;
         max-width: 340px; width: 90%;
-        box-shadow: 0 0 60px rgba(0,243,255,0.12), inset 0 1px 0 rgba(255,255,255,0.06);
+        box-shadow: 0 0 50px rgba(0,243,255,0.15), inset 0 1px 0 rgba(255,255,255,0.08);
+      }
+
+      /* Logo Header with crisp text & version badge */
+      .logo-box {
+        display: flex; flex-direction: column; align-items: center; gap: 2px; position: relative;
       }
       #ui-panel h1 {
-        font-size: 2.4rem; color: #00f3ff; margin: 0;
-        text-shadow: 0 0 24px #00f3ff, 0 0 60px #00f3ff;
-        letter-spacing: 4px;
+        font-size: 2.5rem; color: #ffffff; margin: 0;
+        -webkit-text-stroke: 1.5px #000000;
+        text-shadow: 0 2px 10px rgba(0,243,255,0.8), 0 0 2px #00f3ff;
+        letter-spacing: 5px;
+        line-height: 1;
       }
-      .sub { font-size: 0.7rem; color: rgba(255,255,255,0.45); letter-spacing: 2px; margin-top: -10px; }
+      .logo-sub-row {
+        display: flex; align-items: center; gap: 8px; margin-top: 2px;
+      }
+      .sub { font-size: 0.68rem; color: rgba(0,243,255,0.85); letter-spacing: 2px; margin: 0; }
+      .ver-badge {
+        font-size: 0.6rem; padding: 1px 6px;
+        background: rgba(0,243,255,0.15); border: 1px solid #00f3ff;
+        color: #00f3ff; border-radius: 8px; font-family: monospace; font-weight: bold;
+      }
+
+      /* SUNO Loading status box */
+      .suno-status-box {
+        width: 100%;
+        background: rgba(0,243,255,0.08);
+        border: 1px solid rgba(0,243,255,0.35);
+        border-radius: 14px;
+        padding: 12px 14px;
+        display: none; flex-direction: column; gap: 8px;
+      }
+      .suno-status-title { font-size: 0.72rem; color: #00f3ff; letter-spacing: 1px; }
+      .suno-status-track { font-size: 0.65rem; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .progress-bar-bg {
+        width: 100%; height: 8px;
+        background: rgba(255,255,255,0.12);
+        border-radius: 4px; overflow: hidden;
+      }
+      .progress-bar-fill {
+        width: 0%; height: 100%;
+        background: linear-gradient(90deg, #00f3ff, #ffe600);
+        border-radius: 4px;
+        transition: width 0.15s ease-out;
+      }
+      .progress-text { font-size: 0.62rem; color: rgba(255,255,255,0.7); text-align: right; }
 
       /* Bookmarklet section */
       .bm-box {
@@ -144,21 +191,8 @@ function buildUI() {
       .bm-btn:hover { background: rgba(255,230,0,0.28); }
       .bm-copied { color: #00ff66 !important; border-color: #00ff66 !important; }
 
-      /* Preset section */
+      /* Section label */
       .section-label { font-size: 0.65rem; color: rgba(0,243,255,0.8); letter-spacing: 2px; align-self: flex-start; }
-      .preset-btns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; width: 100%; }
-      .preset-btn {
-        padding: 7px 12px;
-        background: rgba(255,255,255,0.05);
-        border: 1px solid rgba(255,255,255,0.15);
-        border-radius: 10px; color: #ccc;
-        font-size: 0.66rem; cursor: pointer; font-family: inherit;
-        transition: all 0.2s;
-      }
-      .preset-btn:hover, .preset-btn.active {
-        background: rgba(0,243,255,0.15);
-        border-color: #00f3ff; color: #00f3ff;
-      }
 
       /* Difficulty */
       .diff-row { display: flex; gap: 8px; width: 100%; }
@@ -218,24 +252,33 @@ function buildUI() {
 
     <!-- Title Panel -->
     <div id="ui-panel">
-      <h1>AMULISH</h1>
-      <p class="sub">LYRIC SHOOTER</p>
+      <div class="logo-box">
+        <h1>AMULISH</h1>
+        <div class="logo-sub-row">
+          <span class="sub">LYRIC SHOOTER</span>
+          <span class="ver-badge">${APP_VERSION}</span>
+        </div>
+      </div>
+
+      <!-- SUNO Loading status box (shown if urlAudio) -->
+      <div class="suno-status-box" id="suno-status-box">
+        <div class="suno-status-title">🎵 SUNO曲を読み込み中...</div>
+        <div class="suno-status-track" id="suno-track-name">${urlTitle}</div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="progress-bar-fill"></div>
+        </div>
+        <div class="progress-text" id="progress-text">0%</div>
+      </div>
 
       <!-- Bookmarklet -->
       <div class="bm-box">
         <div class="bm-title">⚡ SUNO連携ブックマークレット</div>
         <div class="bm-desc">
-          ① 下のボタンをコピーしてブックマークに登録<br>
-          ② SUNOで曲を再生しながらブックマークを押す<br>
-          ③ AMULISHが曲と一緒に起動！
+          ① 下のボタンを押してコードをコピー<br>
+          ② ブラウザのブックマークに登録<br>
+          ③ SUNOで好きな曲を再生中に押すだけ！
         </div>
         <button class="bm-btn" id="bm-copy">📋 ブックマークレットをコピー</button>
-      </div>
-
-      <!-- Demo presets -->
-      <div class="section-label">⚡ DEMO TRACKS</div>
-      <div class="preset-btns" id="preset-btns">
-        ${PRESETS.map((p, i) => `<button class="preset-btn${i === 0 ? ' active' : ''}" data-preset="${p.id}">🎵 ${p.title}</button>`).join('')}
       </div>
 
       <!-- Difficulty -->
@@ -268,20 +311,6 @@ function buildUI() {
   `;
   document.body.appendChild(overlay);
 
-  // Only load default preset if no SUNO URL audio was passed in
-  if (!urlAudio) {
-    const firstPreset = PRESETS[0];
-    state.setLyrics(firstPreset.lyrics);
-    audio.setPresetBeat(firstPreset.bpm);
-  } else {
-    if (!params.get('srt')) {
-      state.setLyrics([]);
-    }
-    // Extract words from SUNO title to use as kinetic enemy lyrics
-    const titleWords = urlTitle.split(/[\s,._\-／/]+/).filter(w => w.length > 0);
-    state.setCustomWords(titleWords);
-  }
-
   // Bookmarklet copy
   document.getElementById('bm-copy')!.addEventListener('click', async () => {
     try {
@@ -296,17 +325,6 @@ function buildUI() {
     } catch {
       prompt('コピーしてブックマークに登録してください:', BOOKMARKLET);
     }
-  });
-
-  // Preset buttons
-  document.querySelectorAll<HTMLButtonElement>('.preset-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      const p = PRESETS.find(x => x.id === btn.dataset.preset)!;
-      state.setLyrics(p.lyrics);
-      audio.setPresetBeat(p.bpm);
-    });
   });
 
   // Difficulty buttons
@@ -331,11 +349,21 @@ function buildUI() {
     audio.pause(); state.goToTitle(); showTitle();
   });
 
-  // If loaded from bookmarklet URL param, show SUNO track info
   if (urlAudio) {
-    const box = document.querySelector('.bm-box')!;
-    box.innerHTML = `<div class="bm-title">🎵 SUNO曲を読み込み中...</div><div class="bm-desc">${urlTitle}</div>`;
-    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    const box = document.getElementById('suno-status-box')!;
+    box.style.display = 'flex';
+  }
+}
+
+function updateAudioProgress(pct: number) {
+  const fill = document.getElementById('progress-bar-fill');
+  const txt = document.getElementById('progress-text');
+  const title = document.querySelector('.suno-status-title');
+  if (fill) fill.style.width = pct + '%';
+  if (txt) txt.textContent = pct + '%';
+  if (pct >= 100 && title) {
+    (title as HTMLElement).textContent = '✅ SUNO曲の読み込み完了！';
+    (title as HTMLElement).style.color = '#00ff66';
   }
 }
 
@@ -358,5 +386,4 @@ function showResult() {
   document.getElementById('ui-panel')!.style.display = 'none';
   document.getElementById('result-panel')!.style.display = 'flex';
 }
-// Expose for renderer to call when game ends (optional)
 (window as any).__showResult = showResult;

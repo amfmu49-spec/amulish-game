@@ -13,10 +13,55 @@ export class AudioEngine {
     return this.ctx;
   }
 
-  loadMusic(url: string) {
+  loadMusic(url: string, onProgress?: (pct: number) => void) {
     if (this.audio) { this.audio.pause(); this.audio.src = ''; }
     this.stopPresetBeat();
+
+    // Use XHR to monitor download progress percentage
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+    xhr.responseType = 'blob';
+
+    xhr.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        const pct = Math.min(99, Math.round((e.loaded / e.total) * 100));
+        onProgress(pct);
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status === 200 || xhr.status === 0) {
+        const blobUrl = URL.createObjectURL(xhr.response);
+        this.audio = new Audio(blobUrl);
+        this.audio.addEventListener('timeupdate', () => {
+          if (this.audio) {
+            this._currentTime = this.audio.currentTime * 1000;
+            this.onTime?.(this._currentTime);
+          }
+        });
+        if (onProgress) onProgress(100);
+        this.audio.play().catch(() => {});
+      } else {
+        this._fallbackAudioLoad(url, onProgress);
+      }
+    };
+
+    xhr.onerror = () => {
+      this._fallbackAudioLoad(url, onProgress);
+    };
+
+    xhr.send();
+  }
+
+  private _fallbackAudioLoad(url: string, onProgress?: (pct: number) => void) {
     this.audio = new Audio(url);
+    this.audio.addEventListener('progress', () => {
+      if (this.audio && this.audio.buffered.length > 0 && this.audio.duration) {
+        const pct = Math.min(99, Math.round((this.audio.buffered.end(0) / this.audio.duration) * 100));
+        onProgress?.(pct);
+      }
+    });
+    this.audio.addEventListener('canplaythrough', () => onProgress?.(100));
     this.audio.addEventListener('timeupdate', () => {
       if (this.audio) {
         this._currentTime = this.audio.currentTime * 1000;
