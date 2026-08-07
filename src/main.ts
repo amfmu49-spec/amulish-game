@@ -8,7 +8,7 @@ import { AudioEngine } from './audioEngine';
 import { Renderer } from './renderer';
 import { GameState } from './gameState';
 
-const APP_VERSION = 'v2.1.5';
+const APP_VERSION = 'v2.1.6';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d', { alpha: false })!;
@@ -52,17 +52,40 @@ const urlAudio = rawAudio ? resolveSunoUrl(rawAudio) : null;
 const urlTitle = params.get('title') || 'SUNO Track';
 const urlLyrics = params.get('lyrics');
 const urlSrt = params.get('srt');
+const urlDebug = params.get('dbg');
 
 let loadedLyrics: LyricLine[] = [];
+let debugMsg = '';
 
 if (urlLyrics) {
-  loadedLyrics = parseAnyLyrics(decodeURIComponent(urlLyrics));
+  const raw = decodeURIComponent(urlLyrics);
+  console.log('[AMULISH] Raw lyrics received:', raw.substring(0, 300));
+  loadedLyrics = parseAnyLyrics(raw);
+  console.log('[AMULISH] Parsed lyrics count:', loadedLyrics.length, loadedLyrics.slice(0, 5).map(l => l.text));
+  debugMsg = `歌詞取得OK: ${loadedLyrics.length}フレーズ`;
 } else if (urlSrt) {
-  loadedLyrics = parseAnyLyrics(decodeURIComponent(urlSrt));
+  const raw = decodeURIComponent(urlSrt);
+  loadedLyrics = parseAnyLyrics(raw);
+  debugMsg = `SRT取得OK: ${loadedLyrics.length}フレーズ`;
+} else if (urlDebug) {
+  debugMsg = `歌詞未取得: "${decodeURIComponent(urlDebug)}"`;
+  console.warn('[AMULISH] No lyrics received. Debug:', decodeURIComponent(urlDebug));
 }
 
 if (loadedLyrics.length > 0) {
   state.setLyrics(loadedLyrics);
+} else if (urlLyrics || urlSrt) {
+  // Had raw data but parser filtered everything out — use raw lines as-is
+  const raw = decodeURIComponent(urlLyrics || urlSrt || '');
+  const fallbackLines: LyricLine[] = raw.replace(/\r\n/g, '\n').split('\n')
+    .map(s => s.trim())
+    .filter(s => s.length > 0 && !/^\[.*\]$/.test(s) && !/^\(.*\)$/.test(s))
+    .map((text, i) => ({ id: 'fb_' + i, time: 500 + i * 1800, end: 3000 + i * 1800, text }));
+  if (fallbackLines.length > 0) {
+    state.setLyrics(fallbackLines);
+    debugMsg = `フォールバック歌詞: ${fallbackLines.length}行`;
+    console.log('[AMULISH] Using fallback lines:', fallbackLines.slice(0, 5).map(l => l.text));
+  }
 }
 
 if (urlAudio) {
@@ -73,6 +96,26 @@ if (urlAudio) {
 
 // ---- Build UI ----
 buildUI();
+
+// Show lyric debug status in UI
+if (debugMsg) {
+  setTimeout(() => {
+    const box = document.getElementById('suno-status-box');
+    const titleEl = document.querySelector('.suno-status-title') as HTMLElement | null;
+    const trackEl = document.getElementById('suno-track-name') as HTMLElement | null;
+    if (box) box.style.display = 'flex';
+    if (titleEl) {
+      if (loadedLyrics.length > 0) {
+        titleEl.textContent = '✅ 歌詞セット完了！';
+        titleEl.style.color = '#00ff66';
+      } else {
+        titleEl.textContent = '⚠️ 歌詞取得できず（デモ語で表示）';
+        titleEl.style.color = '#ff6622';
+      }
+    }
+    if (trackEl) trackEl.textContent = debugMsg;
+  }, 100);
+}
 
 if (urlAudio) {
   audio.loadMusic(urlAudio, (pct) => {
@@ -117,7 +160,61 @@ canvas.addEventListener('mouseup', onEnd);
 
 // ---- SUNO Lyric-Extraction Bookmarklet ----
 const DEPLOY_URL = `https://amfmu49-spec.github.io/amulish-game/`;
-const BOOKMARKLET = `javascript:(function(){var src='';var a=document.querySelector('audio');if(a&&a.src&&!a.src.startsWith('blob:')){src=a.src;}if(!src){var m=location.href.match(/([a-f0-9]{8}\\-[a-f0-9]{4}\\-[a-f0-9]{4}\\-[a-f0-9]{4}\\-[a-f0-9]{12})/i);if(m)src='https://cdn1.suno.ai/'+m[1]+'.mp3';}if(!src&&a&&a.src){var m2=a.src.match(/([a-f0-9]{8}\\-[a-f0-9]{4}\\-[a-f0-9]{4}\\-[a-f0-9]{4}\\-[a-f0-9]{12})/i);if(m2)src='https://cdn1.suno.ai/'+m2[1]+'.mp3';}if(!src){alert('❌ SUNOで曲を再生するか、曲ページ(suno.com/song/...)で実行してください');return;}var candidates=[];var els=document.querySelectorAll('[data-testid="song-lyrics"],[class*="Lyric"],[class*="lyric"],.whitespace-pre-wrap');els.forEach(function(el){if(el.tagName==='TEXTAREA'||el.tagName==='INPUT'||el.getAttribute('placeholder'))return;var txt=(el.innerText||'').trim();if(!txt)return;var lower=txt.toLowerCase();if(lower.includes('bpm')&&lower.includes('vocal')&&lower.includes(','))return;if(lower.startsWith('style:')||lower.startsWith('genre:')||lower.startsWith('prompt:'))return;candidates.push(txt);});var lyricsText='';for(var i=0;i<candidates.length;i++){if(/[\\u3040-\\u30ff\\u4e00-\\u9faf]/.test(candidates[i])){lyricsText=candidates[i];break;}}if(!lyricsText&&candidates.length>0){lyricsText=candidates[0];}var title=(document.title||'SUNO Track').replace(' | Suno','').replace('Suno - ','').trim();var url='${DEPLOY_URL}?audio='+encodeURIComponent(src)+'&title='+encodeURIComponent(title);if(lyricsText){url+='&lyrics='+encodeURIComponent(lyricsText.substring(0,3000));}window.open(url,'_blank');})();`;
+
+// Bookmarklet: aggressively scrape SUNO page for lyrics text, try many selectors
+const BOOKMARKLET = `javascript:(function(){
+var src='';
+var a=document.querySelector('audio');
+if(a&&a.src&&!a.src.startsWith('blob:'))src=a.src;
+if(!src){var m=location.href.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);if(m)src='https://cdn1.suno.ai/'+m[1]+'.mp3';}
+if(!src&&a&&a.src){var m2=a.src.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);if(m2)src='https://cdn1.suno.ai/'+m2[1]+'.mp3';}
+if(!src){alert('\\u274c SUNO\\u306e\\u66f2\\u30da\\u30fc\\u30b8(suno.com/song/...)\\u3067\\u5b9f\\u884c\\u3057\\u3066\\u304f\\u3060\\u3055\\u3044');return;}
+
+var lyricsText='';
+
+// Strategy 1: Specific SUNO data-testid
+var el=document.querySelector('[data-testid="song-lyrics"]');
+if(el&&el.innerText&&el.innerText.trim().length>20)lyricsText=el.innerText.trim();
+
+// Strategy 2: Look for whitespace-pre elements (SUNO renders lyrics in pre-wrap divs)
+if(!lyricsText){
+  var divs=document.querySelectorAll('div,p,section');
+  var best='';
+  divs.forEach(function(d){
+    var t=(d.innerText||'').trim();
+    if(t.length<30||t.length>5000)return;
+    var lines=t.split('\\n').filter(function(l){return l.trim().length>0;});
+    if(lines.length<3)return;
+    // Skip if it looks like a menu or navigation
+    if(t.includes('Login')||t.includes('Sign Up')||t.includes('Cookie'))return;
+    // Prefer text with Japanese or that looks like song lyrics (multiple short lines)
+    var avgLen=t.length/lines.length;
+    if(avgLen>3&&avgLen<80&&lines.length>3){
+      if(t.length>best.length)best=t;
+    }
+  });
+  if(best)lyricsText=best;
+}
+
+// Strategy 3: Look for any element with class containing lyric/Lyric
+if(!lyricsText){
+  var lyricEls=document.querySelectorAll('[class*="lyric"],[class*="Lyric"],[class*="lyrics"],[class*="Lyrics"]');
+  lyricEls.forEach(function(el){
+    var t=(el.innerText||'').trim();
+    if(t.length>lyricsText.length&&t.length>20&&t.length<5000)lyricsText=t;
+  });
+}
+
+var title=(document.title||'SUNO Track').replace(' | Suno','').replace('Suno - ','').trim();
+var url='${DEPLOY_URL}?audio='+encodeURIComponent(src)+'&title='+encodeURIComponent(title);
+if(lyricsText){
+  url+='&lyrics='+encodeURIComponent(lyricsText.substring(0,4000));
+  url+='&dbg='+encodeURIComponent(lyricsText.substring(0,60));
+}else{
+  url+='&dbg=NO_LYRICS_FOUND';
+}
+window.open(url,'_blank');
+})();`.replace(/\n/g, '');
 
 // ---- UI builder ----
 function buildUI() {

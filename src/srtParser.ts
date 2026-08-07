@@ -1,4 +1,4 @@
-// SRT / LRC / Plain Text Lyrics parser with meta-tag and style-prompt filtering
+// SRT / LRC / Plain Text Lyrics parser
 export interface LyricLine {
   id: string;
   time: number; // start time in ms
@@ -6,45 +6,49 @@ export interface LyricLine {
   text: string;
 }
 
-const STYLE_KEYWORDS = [
-  'cyberpunk', 'j-pop', 'jpop', 'synthwave', 'bpm', 'vocal', 'vocals', 'male', 'female',
-  'electronic', 'edm', 'upbeat', 'pop', 'rock', 'metal', 'acoustic', 'guitar', 'anime',
-  'energetic', 'fast', 'slow', 'dark', 'bright', 'futuristic', 'heavy', 'tempo', 'dance',
-  'hiphop', 'rap', 'piano', 'orchestral', 'synth', 'bass', 'beat', 'melody', 'track'
-];
+// CONSERVATIVE style prompt detector - only catch lines that are PURELY style tags.
+// Japanese text is ALWAYS treated as lyrics. English lyrics should NOT be filtered.
+const PURE_STYLE_WORDS = new Set([
+  'cyberpunk', 'synthwave', 'edm', 'jpop', 'j-pop', 'kpop', 'k-pop',
+  'hiphop', 'hip-hop', 'orchestral', 'instrumental',
+]);
 
 export function isStylePromptLine(text: string): boolean {
-  if (!text) return true;
-  // Japanese text (hiragana, katakana, kanji) is ALWAYS valid lyrics, NEVER a style prompt!
+  if (!text || text.trim().length === 0) return true;
+  // Japanese text (hiragana, katakana, kanji) is ALWAYS valid lyrics
   if (/[\u3040-\u30ff\u4e00-\u9faf]/.test(text)) return false;
 
   const lower = text.toLowerCase().trim();
 
-  // Explicit check for style lines
-  if (lower.startsWith('style:') || lower.startsWith('genre:') || lower.startsWith('prompt:')) return true;
+  // Only reject lines that LOOK LIKE prompt headers
+  if (/^style:/i.test(lower)) return true;
+  if (/^genre:/i.test(lower)) return true;
+  if (/^prompt:/i.test(lower)) return true;
 
-  const words = lower.split(/[\s,._\-／/]+/).filter(Boolean);
+  // Reject lines that are pure BPM/genre tags like "140 BPM, Male Vocals, Cyberpunk"
+  // These have NO normal English words - just comma-separated tech tags
+  const words = lower.split(/[\s,]+/).filter(Boolean);
   if (words.length === 0) return true;
 
-  let matchCount = 0;
-  for (const w of words) {
-    if (STYLE_KEYWORDS.includes(w) || /^\d+bpm$/.test(w) || /^\d+$/.test(w)) {
-      matchCount++;
-    }
-  }
-  // If half or more of the words are music style tags, it's a style prompt, NOT song lyrics!
-  return (matchCount / words.length) >= 0.5;
+  // Only filter if EVERY word is a pure style keyword or number/bpm pattern
+  const allStyleWords = words.every(w =>
+    PURE_STYLE_WORDS.has(w) ||
+    /^\d+$/.test(w) ||
+    /^\d+bpm$/.test(w) ||
+    ['male', 'female', 'vocal', 'vocals', 'upbeat', 'tempo', 'fast', 'slow'].includes(w)
+  );
+
+  // Must have multiple words AND all be style words to be a style prompt
+  return words.length >= 2 && allStyleWords;
 }
 
 export function cleanLyricsText(raw: string): string {
   if (!raw) return '';
   return raw
-    // Remove all bracket meta tags: [Verse 1], [Chorus], [Bridge], [Guitar Solo], [Intro], [Outro], [Drop], etc.
-    .replace(/\[[^\]]*\]/g, '')
-    // Remove parentheses meta tags: (Chorus), (Solo), (Repeat x2), etc.
-    .replace(/\([^\)]*\)/g, '')
-    // Remove common prompt metadata words if isolated
-    .replace(/\b(Verse|Chorus|Bridge|Intro|Outro|Hook|Pre-Chorus|Solo|Instrumental|Drop)\s*\d*\b/gi, '')
+    // Remove bracket tags like [Verse 1], [Chorus]
+    .replace(/\[[^\]]{1,40}\]/g, '')
+    // Remove parenthesis tags like (Chorus), (Solo)
+    .replace(/\([^\)]{1,30}\)/g, '')
     .trim();
 }
 
@@ -69,7 +73,6 @@ export function parseSRT(raw: string): LyricLine[] {
     const endMs   = toMs(match[5], match[6], match[7], match[8]);
     const rawText = parts.slice(2).join(' ').replace(/<[^>]+>/g, '').trim();
     const text    = cleanLyricsText(rawText);
-
     if (text && !isStylePromptLine(text)) {
       lines.push({ id: block.substring(0, 20) + startMs, time: startMs, end: endMs, text });
     }
@@ -95,35 +98,21 @@ export function parseLRC(raw: string): LyricLine[] {
 
 export function parseRawText(raw: string): LyricLine[] {
   const lines: LyricLine[] = [];
-  const cleanedText = cleanLyricsText(raw);
-  const rawRows = cleanedText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
-    .map(s => s.trim())
+  const rows = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+    .map(s => cleanLyricsText(s).trim())
     .filter(s => s.length > 0 && !isStylePromptLine(s));
 
-  const phrases: string[] = [];
-  for (const row of rawRows) {
-    if (row.length > 14) {
-      const sub = row.split(/[、,。.！!？?\s]+/)
-        .map(s => cleanLyricsText(s))
-        .filter(s => s.length > 0 && !isStylePromptLine(s));
-      if (sub.length > 0) phrases.push(...sub);
-      else phrases.push(row);
-    } else {
-      phrases.push(row);
-    }
-  }
-
-  let time = 1000;
-  for (let i = 0; i < phrases.length; i++) {
-    const text = phrases[i].trim();
-    if (!text || isStylePromptLine(text)) continue;
+  let time = 500;
+  for (let i = 0; i < rows.length; i++) {
+    const text = rows[i];
+    if (!text) continue;
     lines.push({
       id: 'raw_' + i + '_' + Math.random(),
       time,
-      end: time + 3000,
+      end: time + 2500,
       text,
     });
-    time += 2000; // Spawns next phrase every 2 seconds
+    time += 1800;
   }
   return lines;
 }
