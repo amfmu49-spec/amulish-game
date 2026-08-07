@@ -8,7 +8,7 @@ import { AudioEngine } from './audioEngine';
 import { Renderer } from './renderer';
 import { GameState } from './gameState';
 
-const APP_VERSION = 'v2.1.8';
+const APP_VERSION = 'v2.1.9';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d', { alpha: false })!;
@@ -161,8 +161,72 @@ canvas.addEventListener('mouseup', onEnd);
 // ---- SUNO Lyric-Extraction Bookmarklet ----
 const DEPLOY_URL = `https://amfmu49-spec.github.io/amulish-game/`;
 
-// Compact bookmarklet - picks the MOST SPECIFIC element with lyric-like lines
-const BOOKMARKLET = `javascript:(function(){var s='',a=document.querySelector('audio');if(a&&a.src&&!a.src.startsWith('blob:'))s=a.src;var m=(location.href+'|'+(a&&a.src||'')).match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);if(m)s='https://cdn1.suno.ai/'+m[1]+'.mp3';if(!s){alert('SUNO\u306e\u66f2\u30da\u30fc\u30b8\u3067\u5b9f\u884c\u3057\u3066\u306d');return;}function lyricScore(txt){var lines=txt.split('\\n').map(function(l){return l.trim();}).filter(function(l){return l.length>1;});if(lines.length<3)return 0;var ok=lines.filter(function(l){return l.length>=2&&l.length<=80&&!l.includes(' \u00b7 ')&&!l.includes(' \u2022 ')&&(l.match(/,/g)||[]).length<3;}).length;return ok/lines.length>=0.6?ok:0;}var L='',best=0;[].forEach.call(document.querySelectorAll('div,section,article,pre'),function(el){if(el.children.length>12)return;var t=(el.innerText||'').trim();if(t.length<30||t.length>5000)return;var sc=lyricScore(t);if(sc>best){best=sc;L=t;}});var tt=(document.title||'').replace(/[|\-].*$/,'').trim()||'SUNO';var u='${DEPLOY_URL}?audio='+encodeURIComponent(s)+'&title='+encodeURIComponent(tt);if(L)u+='&lyrics='+encodeURIComponent(L.substring(0,3000));window.open(u,'_blank');})();`;
+// Bookmarklet: Extract timestamped lyrics (SRT) from SUNO's __NEXT_DATA__ / React state,
+// then fall back to DOM text scraping
+const BOOKMARKLET = `javascript:(function(){
+var s='',a=document.querySelector('audio');
+if(a&&a.src&&!a.src.startsWith('blob:'))s=a.src;
+var m=(location.href+'|'+(a&&a.src||'')).match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+if(m)s='https://cdn1.suno.ai/'+m[1]+'.mp3';
+if(!s){alert('SUNO\u306e\u66f2\u30da\u30fc\u30b8\u3067\u5b9f\u884c\u3057\u3066\u306d');return;}
+
+var srt='',plainLyrics='',songId=m&&m[1]||'';
+
+function findLyricsInObj(obj,depth){
+  if(!obj||depth>6)return null;
+  try{
+    if(Array.isArray(obj)){
+      for(var i=0;i<obj.length;i++){var r=findLyricsInObj(obj[i],depth+1);if(r)return r;}
+      return null;
+    }
+    if(typeof obj==='object'){
+      if(obj.lyrics_alignment||obj.aligned_lyrics||obj.lyric_alignment){
+        return obj.lyrics_alignment||obj.aligned_lyrics||obj.lyric_alignment;
+      }
+      if(obj.lyrics&&typeof obj.lyrics==='string'&&obj.lyrics.length>30)return obj.lyrics;
+      var keys=Object.keys(obj);
+      for(var i=0;i<keys.length;i++){
+        var k=keys[i];
+        if(k==='__proto__'||k==='constructor')continue;
+        var r=findLyricsInObj(obj[k],depth+1);
+        if(r)return r;
+      }
+    }
+  }catch(e){}
+  return null;
+}
+
+var nd=window.__NEXT_DATA__;
+if(nd){
+  var found=findLyricsInObj(nd,0);
+  if(found&&typeof found==='string'&&found.length>30)plainLyrics=found;
+  if(found&&typeof found==='object'){
+    var lines=Array.isArray(found)?found:(found.lines||found.words||[]);
+    if(lines.length>0&&lines[0]&&(lines[0].start_time_ms!==undefined||lines[0].start!==undefined)){
+      var idx=1;
+      srt=lines.map(function(l){
+        var st=l.start_time_ms!==undefined?l.start_time_ms:(l.start||0)*1000;
+        var et=l.end_time_ms!==undefined?l.end_time_ms:(l.end||st+2000)*1000;
+        if(typeof st!=='number')st=0;if(typeof et!=='number')et=st+2000;
+        var fmt=function(ms){var h=Math.floor(ms/3600000),r=ms%3600000,mn=Math.floor(r/60000),sc=Math.floor((r%60000)/1000),ms2=ms%1000;return (h<10?'0':'')+h+':'+(mn<10?'0':'')+mn+':'+(sc<10?'0':'')+sc+','+(ms2<100?'0':''+(ms2<10?'0':''))+ms2;};
+        return (idx++)+'\n'+fmt(st)+' --> '+fmt(et)+'\n'+(l.text||l.word||l.content||'');
+      }).join('\n\n');
+    }
+  }
+}
+
+if(!srt&&!plainLyrics){
+  function lyricScore(txt){var lines=txt.split('\n').map(function(l){return l.trim();}).filter(function(l){return l.length>1;});if(lines.length<3)return 0;var ok=lines.filter(function(l){return l.length>=2&&l.length<=80&&!l.includes(' \u00b7 ')&&(l.match(/,/g)||[]).length<3;}).length;return ok/lines.length>=0.6?ok:0;}
+  var best=0;
+  [].forEach.call(document.querySelectorAll('div,section,pre,article'),function(el){if(el.children.length>12)return;var t=(el.innerText||'').trim();if(t.length<30||t.length>5000)return;var sc=lyricScore(t);if(sc>best){best=sc;plainLyrics=t;}});
+}
+
+var tt=(document.title||'').replace(/[|\-].*$/,'').trim()||'SUNO';
+var u='${DEPLOY_URL}?audio='+encodeURIComponent(s)+'&title='+encodeURIComponent(tt);
+if(srt)u+='&lyrics='+encodeURIComponent(srt.substring(0,4000));
+else if(plainLyrics)u+='&lyrics='+encodeURIComponent(plainLyrics.substring(0,3000));
+window.open(u,'_blank');
+})();`.replace(/\n/g, '');
 
 // ---- UI builder ----
 function buildUI() {
