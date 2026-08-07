@@ -3,12 +3,12 @@
 // Pure Canvas 2D, SUNO Bookmarklet Lyric Shooter
 // =============================================
 
-import { parseSRT, parseLRC, parseAnyLyrics, isStylePromptLine } from './srtParser';
+import { parseSRT, parseLRC, parseAnyLyrics, isStylePromptLine, type LyricLine } from './srtParser';
 import { AudioEngine } from './audioEngine';
 import { Renderer } from './renderer';
 import { GameState } from './gameState';
 
-const APP_VERSION = 'v2.1.4';
+const APP_VERSION = 'v2.1.5';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d', { alpha: false })!;
@@ -51,19 +51,24 @@ const rawAudio = params.get('audio');
 const urlAudio = rawAudio ? resolveSunoUrl(rawAudio) : null;
 const urlTitle = params.get('title') || 'SUNO Track';
 const urlLyrics = params.get('lyrics');
+const urlSrt = params.get('srt');
+
+let loadedLyrics: LyricLine[] = [];
+
+if (urlLyrics) {
+  loadedLyrics = parseAnyLyrics(decodeURIComponent(urlLyrics));
+} else if (urlSrt) {
+  loadedLyrics = parseAnyLyrics(decodeURIComponent(urlSrt));
+}
+
+if (loadedLyrics.length > 0) {
+  state.setLyrics(loadedLyrics);
+}
 
 if (urlAudio) {
-  state.setLyrics([]);
   const rawWords = urlTitle.split(/[\s,._\-／/]+/).filter(w => w.length > 1);
   const cleanTitleWords = rawWords.filter(w => !isStylePromptLine(w));
   state.setCustomWords(cleanTitleWords);
-}
-
-if (urlLyrics) {
-  const parsed = parseAnyLyrics(decodeURIComponent(urlLyrics));
-  if (parsed.length > 0) {
-    state.setLyrics(parsed);
-  }
 }
 
 // ---- Build UI ----
@@ -73,11 +78,6 @@ if (urlAudio) {
   audio.loadMusic(urlAudio, (pct) => {
     updateAudioProgress(pct);
   });
-  const urlSrt = params.get('srt');
-  if (urlSrt) {
-    const lrc = parseLRC(decodeURIComponent(urlSrt));
-    state.setLyrics(lrc);
-  }
 }
 
 // ---- Audio time sync ----

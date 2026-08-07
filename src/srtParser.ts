@@ -15,6 +15,9 @@ const STYLE_KEYWORDS = [
 
 export function isStylePromptLine(text: string): boolean {
   if (!text) return true;
+  // Japanese text (hiragana, katakana, kanji) is ALWAYS valid lyrics, NEVER a style prompt!
+  if (/[\u3040-\u30ff\u4e00-\u9faf]/.test(text)) return false;
+
   const lower = text.toLowerCase().trim();
 
   // Explicit check for style lines
@@ -30,13 +33,13 @@ export function isStylePromptLine(text: string): boolean {
     }
   }
   // If half or more of the words are music style tags, it's a style prompt, NOT song lyrics!
-  return (matchCount / words.length) >= 0.45;
+  return (matchCount / words.length) >= 0.5;
 }
 
 export function cleanLyricsText(raw: string): string {
   if (!raw) return '';
   return raw
-    // Remove bracket meta tags: [Verse 1], [Chorus], [Bridge], [Guitar Solo], [Intro], [Outro], [Drop], etc.
+    // Remove all bracket meta tags: [Verse 1], [Chorus], [Bridge], [Guitar Solo], [Intro], [Outro], [Drop], etc.
     .replace(/\[[^\]]*\]/g, '')
     // Remove parentheses meta tags: (Chorus), (Solo), (Repeat x2), etc.
     .replace(/\([^\)]*\)/g, '')
