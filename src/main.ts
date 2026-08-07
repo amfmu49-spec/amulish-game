@@ -1,6 +1,6 @@
 // =============================================
-// AMULISH - Lyric Shooter Game v1.2.2
-// Pure Canvas 2D, no frameworks, max performance
+// AMULISH - Lyric Shooter Game v2.0.0 (AMUVI SRT Engine)
+// Pure Canvas 2D, millisecond SRT sync, max performance
 // =============================================
 
 import { parseSRT, parseLRC, parseAnyLyrics } from './srtParser';
@@ -8,7 +8,7 @@ import { AudioEngine } from './audioEngine';
 import { Renderer } from './renderer';
 import { GameState } from './gameState';
 
-const APP_VERSION = 'v1.2.2';
+const APP_VERSION = 'v2.0.0';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d', { alpha: false })!;
@@ -166,6 +166,28 @@ function buildUI() {
         color: #00f3ff; border-radius: 8px; font-family: monospace; font-weight: bold;
       }
 
+      /* Upload Row (MP3 & SRT) */
+      .file-upload-row {
+        display: flex; gap: 8px; width: 100%;
+      }
+      .file-btn {
+        flex: 1; padding: 10px 8px;
+        background: rgba(0,243,255,0.08);
+        border: 1px dashed rgba(0,243,255,0.5);
+        border-radius: 12px;
+        color: #00f3ff; font-size: 0.68rem;
+        text-align: center; cursor: pointer;
+        line-height: 1.3; font-family: inherit;
+        transition: all 0.2s;
+      }
+      .file-btn:hover { background: rgba(0,243,255,0.18); border-color: #00f3ff; }
+      .file-btn.srt-btn {
+        background: rgba(255,230,0,0.08);
+        border-color: rgba(255,230,0,0.5);
+        color: #ffe600;
+      }
+      .file-btn.srt-btn:hover { background: rgba(255,230,0,0.18); border-color: #ffe600; }
+
       /* SUNO Loading status box */
       .suno-status-box {
         width: 100%;
@@ -230,7 +252,7 @@ function buildUI() {
       }
       .lyrics-box-title { font-size: 0.63rem; color: #ffe600; letter-spacing: 1px; }
       .lyrics-box textarea {
-        width: 100%; height: 42px;
+        width: 100%; height: 38px;
         background: rgba(0,0,0,0.4);
         border: 1px solid rgba(255,255,255,0.18);
         border-radius: 8px; color: #fff;
@@ -253,7 +275,6 @@ function buildUI() {
         padding: 8px 10px;
         display: flex; flex-direction: column; gap: 6px;
       }
-      .bm-title { font-size: 0.65rem; color: #ffe600; letter-spacing: 1px; }
       .bm-btn {
         width: 100%; padding: 8px;
         background: rgba(255,230,0,0.15);
@@ -334,6 +355,18 @@ function buildUI() {
         </div>
       </div>
 
+      <!-- File Upload Row -->
+      <div class="file-upload-row">
+        <label class="file-btn" id="lbl-mp3">
+          🎵 MP3音源を読み込む
+          <input type="file" id="file-mp3" accept="audio/*" style="display:none" />
+        </label>
+        <label class="file-btn srt-btn" id="lbl-srt">
+          📝 SRT/LRCを読み込む
+          <input type="file" id="file-srt" accept=".srt,.lrc,.txt" style="display:none" />
+        </label>
+      </div>
+
       <!-- SUNO Loading status box -->
       <div class="suno-status-box" id="suno-status-box">
         <div class="suno-status-title">🎵 SUNO曲を読み込み中...</div>
@@ -394,6 +427,33 @@ function buildUI() {
     </div>
   `;
   document.body.appendChild(overlay);
+
+  // File upload handlers
+  const fileMp3 = document.getElementById('file-mp3') as HTMLInputElement;
+  const fileSrt = document.getElementById('file-srt') as HTMLInputElement;
+  const lblMp3 = document.getElementById('lbl-mp3')!;
+  const lblSrt = document.getElementById('lbl-srt')!;
+
+  fileMp3.addEventListener('change', e => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    audio.loadMusic(url, (pct) => updateAudioProgress(pct));
+    lblMp3.textContent = '🎵 ' + file.name.substring(0, 12);
+  });
+
+  fileSrt.addEventListener('change', e => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const text = ev.target!.result as string;
+      const parsed = parseAnyLyrics(text);
+      state.setLyrics(parsed);
+      lblSrt.textContent = `✅ SRT (${parsed.length}行)`;
+    };
+    reader.readAsText(file, 'utf-8');
+  });
 
   // Manual URL paste handler
   const loadUrlBtn = document.getElementById('btn-load-url')!;
