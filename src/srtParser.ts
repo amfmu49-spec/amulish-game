@@ -1,4 +1,4 @@
-// SRT parser - returns array of { time: number (ms), text: string }
+// SRT / LRC / Plain Text Lyrics parser
 export interface LyricLine {
   id: string;
   time: number; // start time in ms
@@ -35,16 +35,41 @@ export function parseSRT(raw: string): LyricLine[] {
   return lines.sort((a, b) => a.time - b.time);
 }
 
-// Also supports LRC format: [mm:ss.xx] text
 export function parseLRC(raw: string): LyricLine[] {
   const lines: LyricLine[] = [];
   const rows = raw.split('\n');
   for (const row of rows) {
-    const match = row.match(/\[(\d+):(\d+)\.(\d+)\](.*)/);
+    const match = row.match(/\[(\d+):(\d+)[\.:](\d+)\](.*)/);
     if (!match) continue;
     const ms = parseInt(match[1]) * 60000 + parseInt(match[2]) * 1000 + parseInt(match[3].padEnd(3, '0').substring(0, 3));
     const text = match[4].trim();
-    if (text) lines.push({ id: row, time: ms, end: ms + 3000, text });
+    if (text) lines.push({ id: row + ms, time: ms, end: ms + 3000, text });
   }
   return lines.sort((a, b) => a.time - b.time);
+}
+
+export function parseRawText(raw: string): LyricLine[] {
+  const lines: LyricLine[] = [];
+  const rows = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+    .map(s => s.trim())
+    .filter(s => s.length > 0 && !s.startsWith('[Verse') && !s.startsWith('[Chorus') && !s.startsWith('[Bridge'));
+
+  let time = 1200;
+  for (let i = 0; i < rows.length; i++) {
+    lines.push({
+      id: 'raw_' + i + '_' + Math.random(),
+      time,
+      end: time + 2500,
+      text: rows[i],
+    });
+    time += 2400; // spawn a line block every 2.4 seconds
+  }
+  return lines;
+}
+
+export function parseAnyLyrics(raw: string): LyricLine[] {
+  if (!raw.trim()) return [];
+  if (raw.includes('-->')) return parseSRT(raw);
+  if (/\[\d+:\d+/.test(raw)) return parseLRC(raw);
+  return parseRawText(raw);
 }

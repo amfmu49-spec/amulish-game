@@ -146,7 +146,7 @@ export class GameState {
   }
 
   update(dt: number) {
-    this._spawnLyrics();
+    this._spawnLyrics(dt);
 
     // Player auto-fire
     this.fireTimer -= dt;
@@ -233,14 +233,18 @@ export class GameState {
   customWords: string[] = [];
   setCustomWords(words: string[]) { this.customWords = words; }
 
-  private _spawnLyrics() {
+  private spawnTimer = 0;
+
+  private _spawnLyrics(dt: number) {
     if (this.lyrics.length === 0) {
-      if (this.timeMs - this.lastFallbackSpawn > 1800) {
+      this.spawnTimer -= dt;
+      if (this.spawnTimer <= 0) {
         const pool = this.customWords.length > 0
-          ? [...this.customWords, 'AMULISH', 'FEVER', 'BEAT', 'SONIC', '爆発', '電撃', 'RHYTHM']
+          ? [...this.customWords, 'AMULISH', 'FEVER', 'BEAT', 'SONIC', '爆発', '電撃', 'RHYTHM', 'OVERDRIVE', '極限', '覇道']
           : ['AMULISH', 'FEVER', 'BEAT', 'COMBO', 'SONIC', 'RHYTHM', 'BLAZE', 'NOVA', '爆発', '電撃', '嵐', '覇道', '狂乱', '轟音'];
-        this._spawnEnemy(pool[Math.floor(Math.random() * pool.length)]);
-        this.lastFallbackSpawn = this.timeMs;
+        const word = pool[Math.floor(Math.random() * pool.length)];
+        this._spawnEnemy(word);
+        this.spawnTimer = 700 + Math.random() * 400; // Constant stream: spawn every 0.7s - 1.1s
       }
       return;
     }
@@ -256,7 +260,6 @@ export class GameState {
     if (this.lyricIdx >= this.lyrics.length) {
       const lastTime = this.lyrics[this.lyrics.length - 1].time;
       if (relTime >= lastTime + 3000) {
-        // Start next loop from now
         this.lyricTimeOffset = this.timeMs;
         this.lyricIdx = 0;
       }

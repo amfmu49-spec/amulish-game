@@ -1,14 +1,14 @@
 // =============================================
-// AMULISH - Lyric Shooter Game v1.2.1
+// AMULISH - Lyric Shooter Game v1.2.2
 // Pure Canvas 2D, no frameworks, max performance
 // =============================================
 
-import { parseSRT, parseLRC } from './srtParser';
+import { parseSRT, parseLRC, parseAnyLyrics } from './srtParser';
 import { AudioEngine } from './audioEngine';
 import { Renderer } from './renderer';
 import { GameState } from './gameState';
 
-const APP_VERSION = 'v1.2.1';
+const APP_VERSION = 'v1.2.2';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d', { alpha: false })!;
@@ -50,11 +50,19 @@ const params = new URLSearchParams(location.search);
 const rawAudio = params.get('audio');
 const urlAudio = rawAudio ? resolveSunoUrl(rawAudio) : null;
 const urlTitle = params.get('title') || 'SUNO Track';
+const urlLyrics = params.get('lyrics');
 
 if (urlAudio) {
   state.setLyrics([]);
   const titleWords = urlTitle.split(/[\s,._\-／/]+/).filter(w => w.length > 0);
   state.setCustomWords(titleWords);
+}
+
+if (urlLyrics) {
+  const parsed = parseAnyLyrics(decodeURIComponent(urlLyrics));
+  if (parsed.length > 0) {
+    state.setLyrics(parsed);
+  }
 }
 
 // ---- Build UI ----
@@ -108,7 +116,7 @@ canvas.addEventListener('mouseup', onEnd);
 
 // ---- Intelligent Bookmarklet code ----
 const DEPLOY_URL = `https://amfmu49-spec.github.io/amulish-game/`;
-const BOOKMARKLET = `javascript:(function(){var src='';var a=document.querySelector('audio');if(a&&a.src&&!a.src.startsWith('blob:')){src=a.src;}if(!src){var m=location.href.match(/([a-f0-9]{8}\\-[a-f0-9]{4}\\-[a-f0-9]{4}\\-[a-f0-9]{4}\\-[a-f0-9]{12})/i);if(m)src='https://cdn1.suno.ai/'+m[1]+'.mp3';}if(!src&&a&&a.src){var m2=a.src.match(/([a-f0-9]{8}\\-[a-f0-9]{4}\\-[a-f0-9]{4}\\-[a-f0-9]{4}\\-[a-f0-9]{12})/i);if(m2)src='https://cdn1.suno.ai/'+m2[1]+'.mp3';}if(!src){alert('❌ SUNOで曲を再生するか、曲ページ(suno.com/song/...)で実行してください');return;}var t=(document.title||'SUNO Track').replace(' | Suno','').replace('Suno - ','').trim();window.open('${DEPLOY_URL}?audio='+encodeURIComponent(src)+'&title='+encodeURIComponent(t),'_blank');})();`;
+const BOOKMARKLET = `javascript:(function(){var src='';var a=document.querySelector('audio');if(a&&a.src&&!a.src.startsWith('blob:')){src=a.src;}if(!src){var m=location.href.match(/([a-f0-9]{8}\\-[a-f0-9]{4}\\-[a-f0-9]{4}\\-[a-f0-9]{4}\\-[a-f0-9]{12})/i);if(m)src='https://cdn1.suno.ai/'+m[1]+'.mp3';}if(!src&&a&&a.src){var m2=a.src.match(/([a-f0-9]{8}\\-[a-f0-9]{4}\\-[a-f0-9]{4}\\-[a-f0-9]{4}\\-[a-f0-9]{12})/i);if(m2)src='https://cdn1.suno.ai/'+m2[1]+'.mp3';}if(!src){alert('❌ SUNOで曲を再生するか、曲ページ(suno.com/song/...)で実行してください');return;}var lyricsText='';var lyricEls=document.querySelectorAll('[class*="lyric"], .whitespace-pre-wrap');if(lyricEls.length>0){var texts=[];lyricEls.forEach(function(el){if(el.innerText&&el.innerText.trim())texts.push(el.innerText.trim());});lyricsText=texts.join('\\n');}var t=(document.title||'SUNO Track').replace(' | Suno','').replace('Suno - ','').trim();var url='${DEPLOY_URL}?audio='+encodeURIComponent(src)+'&title='+encodeURIComponent(t);if(lyricsText){url+='&lyrics='+encodeURIComponent(lyricsText.substring(0,2500));}window.open(url,'_blank');})();`;
 
 // ---- UI builder ----
 function buildUI() {
@@ -128,9 +136,9 @@ function buildUI() {
         backdrop-filter: blur(18px);
         border: 1px solid rgba(0,243,255,0.4);
         border-radius: 24px;
-        padding: 22px 18px 18px;
+        padding: 20px 16px 16px;
         display: flex; flex-direction: column; align-items: center;
-        gap: 12px;
+        gap: 10px;
         max-width: 340px; width: 92%;
         box-shadow: 0 0 50px rgba(0,243,255,0.15), inset 0 1px 0 rgba(255,255,255,0.08);
       }
@@ -211,13 +219,38 @@ function buildUI() {
       }
       .url-input-row button:hover { opacity: 0.85; }
 
+      /* Lyrics Input Box */
+      .lyrics-box {
+        width: 100%;
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 14px;
+        padding: 8px 10px;
+        display: flex; flex-direction: column; gap: 6px;
+      }
+      .lyrics-box-title { font-size: 0.63rem; color: #ffe600; letter-spacing: 1px; }
+      .lyrics-box textarea {
+        width: 100%; height: 42px;
+        background: rgba(0,0,0,0.4);
+        border: 1px solid rgba(255,255,255,0.18);
+        border-radius: 8px; color: #fff;
+        font-size: 0.62rem; font-family: inherit;
+        padding: 6px; resize: none; outline: none;
+      }
+      .lyrics-box button {
+        width: 100%; padding: 6px;
+        background: rgba(255,230,0,0.15); border: 1px solid #ffe600;
+        border-radius: 8px; color: #ffe600;
+        font-family: inherit; font-size: 0.65rem; cursor: pointer;
+      }
+
       /* Bookmarklet section */
       .bm-box {
         width: 100%;
         background: rgba(255,230,0,0.05);
         border: 1px solid rgba(255,230,0,0.25);
         border-radius: 14px;
-        padding: 10px 12px;
+        padding: 8px 10px;
         display: flex; flex-direction: column; gap: 6px;
       }
       .bm-title { font-size: 0.65rem; color: #ffe600; letter-spacing: 1px; }
@@ -320,10 +353,16 @@ function buildUI() {
         </div>
       </div>
 
+      <!-- Lyrics Text Paste Box -->
+      <div class="lyrics-box">
+        <div class="lyrics-box-title">📝 歌詞テキスト / SRT 貼り付け</div>
+        <textarea id="lyrics-input" placeholder="ここに歌詞を貼ると、その歌詞が敵として登場！"></textarea>
+        <button id="btn-load-lyrics">▶ 歌詞をセット</button>
+      </div>
+
       <!-- Bookmarklet -->
       <div class="bm-box">
-        <div class="bm-title">⚡ SUNO連携ブックマークレット</div>
-        <button class="bm-btn" id="bm-copy">📋 ブックマークレットをコピー</button>
+        <button class="bm-btn" id="bm-copy">📋 SUNO自動連動ブックマークレットをコピー</button>
       </div>
 
       <!-- Difficulty -->
@@ -366,13 +405,25 @@ function buildUI() {
     const directUrl = resolveSunoUrl(val);
     document.getElementById('suno-status-box')!.style.display = 'flex';
     document.getElementById('suno-track-name')!.textContent = 'SUNO Song';
-    state.setLyrics([]);
-    state.setCustomWords(['AMULISH', 'FEVER', 'BEAT', 'SONIC', '電撃', '爆発']);
     audio.loadMusic(directUrl, (pct) => updateAudioProgress(pct));
   };
 
   loadUrlBtn.addEventListener('click', triggerUrlLoad);
   inputEl.addEventListener('keydown', e => { if (e.key === 'Enter') triggerUrlLoad(); });
+
+  // Manual Lyrics paste handler
+  const loadLyricsBtn = document.getElementById('btn-load-lyrics')!;
+  const lyricsInputEl = document.getElementById('lyrics-input') as HTMLTextAreaElement;
+
+  loadLyricsBtn.addEventListener('click', () => {
+    const txt = lyricsInputEl.value.trim();
+    if (!txt) return;
+    const parsed = parseAnyLyrics(txt);
+    state.setLyrics(parsed);
+    loadLyricsBtn.textContent = `✅ 歌詞をセット完了 (${parsed.length}行)`;
+    loadLyricsBtn.style.borderColor = '#00ff66';
+    loadLyricsBtn.style.color = '#00ff66';
+  });
 
   // Bookmarklet copy
   document.getElementById('bm-copy')!.addEventListener('click', async () => {
@@ -382,7 +433,7 @@ function buildUI() {
       btn.textContent = '✅ コピー完了！ブックマークに保存してね';
       btn.classList.add('bm-copied');
       setTimeout(() => {
-        btn.textContent = '📋 ブックマークレットをコピー';
+        btn.textContent = '📋 SUNO自動連動ブックマークレットをコピー';
         btn.classList.remove('bm-copied');
       }, 3000);
     } catch {
@@ -435,7 +486,7 @@ function updateAudioProgress(pct: number) {
   }
 
   const displayPct = Math.max(0, Math.min(100, pct));
-  if (fill) fill.style.width = Math.max(6, displayPct) + '%';
+  if (fill) fill.style.width = Math.max(4, displayPct) + '%';
   if (txt) txt.textContent = displayPct > 0 ? displayPct + '%' : '読込中... (STARTで起動)';
   if (displayPct >= 100 && title) {
     (title as HTMLElement).textContent = '✅ SUNO曲の読み込み完了！';
