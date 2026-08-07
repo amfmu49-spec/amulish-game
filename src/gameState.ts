@@ -59,16 +59,33 @@ export interface EnemyBullet {
   r: number; color: string;
 }
 
+export type ItemType = 'HEAL' | 'SHIELD' | 'FEVER' | 'BOMB';
+
+export interface GameItem {
+  id: string;
+  x: number; y: number;
+  vy: number;
+  type: ItemType;
+  label: string;
+  color: string;
+  r: number;
+}
+
 export class GameState {
   W: number; H: number;
   phase: 'TITLE' | 'PLAYING' | 'RESULT' = 'TITLE';
 
   px = 0; py = 0;
+  playerHp = 100;
+  maxPlayerHp = 100;
+  invincibleTimer = 0;
+  shieldTimer = 0;
 
   enemies: Enemy[] = [];
   bullets: Bullet[] = [];
   particles: Particle[] = [];
   floatingTexts: FloatingText[] = [];
+  items: GameItem[] = [];
 
   score = 0; combo = 0; maxCombo = 0;
   fever = 0; isFever = false;
@@ -87,27 +104,27 @@ export class GameState {
   private enemyFireTimer = 0;
   private readonly FIRE_MS = 220;
 
-  // Difficulty params (set dynamically)
-  private ENEMY_FIRE_MS = 550;
-  private ENEMY_MAX_SHOOTERS = 4;
-  private ENEMY_BASE_BULLETS = 2;
+  // Difficulty params (Tuned so NORMAL has significantly fewer bullets)
+  private ENEMY_FIRE_MS = 1500;
+  private ENEMY_MAX_SHOOTERS = 1;
+  private ENEMY_BASE_BULLETS = 1;
 
   private audio: AudioEngine | null = null;
 
   setDifficulty(d: 'EASY' | 'NORMAL' | 'HARD') {
     this.difficulty = d;
     if (d === 'EASY') {
-      this.ENEMY_FIRE_MS = 1400;        // 1.4s between shots (slow & relaxing)
-      this.ENEMY_MAX_SHOOTERS = 1;        // 1 enemy shoots
-      this.ENEMY_BASE_BULLETS = 1;        // 1 straight bullet
+      this.ENEMY_FIRE_MS = 2000;        // 2.0s between shots
+      this.ENEMY_MAX_SHOOTERS = 1;      // Only 1 shooter
+      this.ENEMY_BASE_BULLETS = 1;      // Gentle single shot
     } else if (d === 'NORMAL') {
-      this.ENEMY_FIRE_MS = 950;         // 0.95s (comfortable & fun)
-      this.ENEMY_MAX_SHOOTERS = 2;        // 2 enemies shoot
-      this.ENEMY_BASE_BULLETS = 1;        // gentle 1-2 bullets
+      this.ENEMY_FIRE_MS = 1400;        // 1.4s between shots (REDUCED BULLETS!)
+      this.ENEMY_MAX_SHOOTERS = 1;      // Only 1 shooter at a time
+      this.ENEMY_BASE_BULLETS = 1;      // Single aimed shot (No intense fan spreads)
     } else {
-      this.ENEMY_FIRE_MS = 450;         // 0.45s (intense danmaku)
-      this.ENEMY_MAX_SHOOTERS = 4;        // 4 enemies shoot
-      this.ENEMY_BASE_BULLETS = 3;        // 3-5 way fan bullets
+      this.ENEMY_FIRE_MS = 600;         // 0.6s (Hard Danmaku)
+      this.ENEMY_MAX_SHOOTERS = 3;      // 3 shooters
+      this.ENEMY_BASE_BULLETS = 2;      // Multi-way fan
     }
   }
 
@@ -123,9 +140,11 @@ export class GameState {
   startGame() {
     this.phase = 'PLAYING';
     this.enemies = []; this.bullets = []; this.particles = [];
-    this.floatingTexts = []; this.enemyBullets = [];
+    this.floatingTexts = []; this.enemyBullets = []; this.items = [];
     this.score = 0; this.combo = 0; this.maxCombo = 0;
     this.fever = 0; this.isFever = false;
+    this.playerHp = 100; this.maxPlayerHp = 100;
+    this.invincibleTimer = 0; this.shieldTimer = 0;
     this.shakeAmt = 0; this.totalShots = 0; this.hits = 0;
     this.lyricIdx = 0; this.timeMs = 0; this.lyricTimeOffset = 0;
     this.fireTimer = 0; this.enemyFireTimer = 0;
@@ -137,7 +156,7 @@ export class GameState {
   goToTitle() {
     this.phase = 'TITLE';
     this.enemies = []; this.bullets = []; this.particles = [];
-    this.floatingTexts = []; this.enemyBullets = [];
+    this.floatingTexts = []; this.enemyBullets = []; this.items = [];
   }
 
   movePlayer(dx: number, dy: number) {
@@ -146,6 +165,11 @@ export class GameState {
   }
 
   update(dt: number) {
+    if (this.phase !== 'PLAYING') return;
+
+    if (this.invincibleTimer > 0) this.invincibleTimer -= dt;
+    if (this.shieldTimer > 0) this.shieldTimer -= dt;
+
     this._spawnLyrics(dt);
 
     // Player auto-fire
@@ -164,6 +188,20 @@ export class GameState {
       if (b.y < -20 || b.x < -20 || b.x > this.W + 20) this.bullets.splice(i, 1);
     }
 
+    // Update items
+    for (let i = this.items.length - 1; i >= 0; i--) {
+      const item = this.items[i];
+      item.y += item.vy * dt * 0.06;
+      if (item.y > this.H + 40) { this.items.splice(i, 1); continue; }
+
+      // Hit player?
+      const dx = item.x - this.px, dy = item.y - this.py;
+      if (dx * dx + dy * dy < 28 * 28) {
+        this._collectItem(item);
+        this.items.splice(i, 1);
+      }
+    }
+
     // Update enemy bullets
     for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
       const eb = this.enemyBullets[i];
@@ -176,12 +214,7 @@ export class GameState {
       const dx = eb.x - this.px, dy = eb.y - this.py;
       if (dx * dx + dy * dy < 20 * 20) {
         this.enemyBullets.splice(i, 1);
-        // Break combo and drain fever
-        this.combo = Math.max(0, this.combo - 3);
-        this.fever = Math.max(0, this.fever - 20);
-        if (this.fever < 100) this.isFever = false;
-        this.shakeAmt = Math.max(this.shakeAmt, 5);
-        this.floatingTexts.push({ x: this.px, y: this.py - 20, vy: -2, life: 500, text: 'OUCH!', color: '#ff2255' });
+        this._damagePlayer(20, 'BULLET');
       }
     }
 
@@ -192,10 +225,25 @@ export class GameState {
       e.y += e.vy * dt * 0.06;
       if ((e.x - e.w / 2 < 0 && e.vx < 0) || (e.x + e.w / 2 > this.W && e.vx > 0)) e.vx *= -1;
       if (e.y > this.H + 120) { this.combo = 0; this.enemies.splice(i, 1); continue; }
+
+      // Enemy crash into player
+      const dx = e.x - this.px, dy = e.y - this.py;
+      if (dx * dx + dy * dy < (e.w * 0.45) ** 2 + 20 * 20) {
+        this._damagePlayer(25, 'CRASH');
+      }
+
       for (const c of e.chars) { if (c.flash > 0) c.flash -= dt; }
     }
 
     this._checkCollisions();
+
+    // Check Game Over
+    if (this.playerHp <= 0) {
+      this.playerHp = 0;
+      this.phase = 'RESULT';
+      this.audio?.playExplodeSound();
+      return;
+    }
 
     // Update particles
     for (let i = this.particles.length - 1; i >= 0; i--) {
@@ -230,6 +278,65 @@ export class GameState {
     if (this.enemyBullets.length > 30) this.enemyBullets.splice(0, this.enemyBullets.length - 30);
   }
 
+  private _damagePlayer(amount: number, reason: string) {
+    if (this.invincibleTimer > 0 || this.shieldTimer > 0) return;
+
+    this.playerHp -= amount;
+    this.invincibleTimer = 1200; // 1.2s invulnerability
+    this.combo = Math.max(0, this.combo - 5);
+    this.fever = Math.max(0, this.fever - 25);
+    if (this.fever < 100) this.isFever = false;
+    this.shakeAmt = Math.max(this.shakeAmt, 10);
+    this.floatingTexts.push({
+      x: this.px, y: this.py - 20, vy: -2, life: 600,
+      text: reason === 'CRASH' ? 'CRASH! -25HP' : '-20 HP!', color: '#ff2255'
+    });
+    this.audio?.playHitSound();
+  }
+
+  private _collectItem(item: GameItem) {
+    this.audio?.playComboSound(20);
+    if (item.type === 'HEAL') {
+      this.playerHp = Math.min(this.maxPlayerHp, this.playerHp + 35);
+      this.floatingTexts.push({ x: item.x, y: item.y - 10, vy: -2, life: 700, text: '❤️ HP RECOVER +35!', color: '#00ff66' });
+    } else if (item.type === 'SHIELD') {
+      this.shieldTimer = 7000; // 7 seconds barrier
+      this.floatingTexts.push({ x: item.x, y: item.y - 10, vy: -2, life: 700, text: '🛡️ SHIELD ACTIVE! (7s)', color: '#00f3ff' });
+    } else if (item.type === 'FEVER') {
+      this.fever = 100;
+      this.isFever = true;
+      this.floatingTexts.push({ x: item.x, y: item.y - 10, vy: -2, life: 700, text: '⚡ FEVER MAX!', color: '#ffe600' });
+    } else if (item.type === 'BOMB') {
+      this.enemyBullets = [];
+      for (const e of this.enemies) {
+        for (const c of e.chars) { c.hp = 0; this._burst(e.x + c.relX, e.y + c.relY, c); }
+      }
+      this.enemies = [];
+      this.shakeAmt = 15;
+      this.floatingTexts.push({ x: item.x, y: item.y - 10, vy: -2, life: 700, text: '💣 BOMB CLEAR!', color: '#ff44aa' });
+    }
+  }
+
+  private _spawnItem() {
+    const types: { type: ItemType; label: string; color: string }[] = [
+      { type: 'HEAL', label: '❤️', color: '#00ff66' },
+      { type: 'SHIELD', label: '🛡️', color: '#00f3ff' },
+      { type: 'FEVER', label: '⚡', color: '#ffe600' },
+      { type: 'BOMB', label: '💣', color: '#ff007f' },
+    ];
+    const pick = types[Math.floor(Math.random() * types.length)];
+    this.items.push({
+      id: Math.random().toString(36).slice(2),
+      x: 30 + Math.random() * (this.W - 60),
+      y: -30,
+      vy: 1.2 + Math.random() * 0.8,
+      type: pick.type,
+      label: pick.label,
+      color: pick.color,
+      r: 16,
+    });
+  }
+
   customWords: string[] = [];
   setCustomWords(words: string[]) {
     this.customWords = words.filter(w => !isStylePromptLine(w));
@@ -247,19 +354,19 @@ export class GameState {
           : ['AMULISH', 'FEVER', 'BEAT', 'COMBO', 'SONIC', 'RHYTHM', 'BLAZE', 'NOVA', '爆発', '電撃', '嵐', '覇道', '狂乱', '轟音'];
         const word = pool[Math.floor(Math.random() * pool.length)];
         this._spawnEnemy(word);
-        this.spawnTimer = 700 + Math.random() * 400; // Constant stream: spawn every 0.7s - 1.1s
+        this.spawnTimer = 800 + Math.random() * 500;
       }
       return;
     }
 
-    // Use relative time (offset resets on each loop)
+    // Relative time lyrics spawning
     const relTime = this.timeMs - this.lyricTimeOffset;
     while (this.lyricIdx < this.lyrics.length && relTime >= this.lyrics[this.lyricIdx].time) {
       this._spawnEnemy(this.lyrics[this.lyricIdx].text);
       this.lyricIdx++;
     }
 
-    // Loop: wait for relTime to pass the last lyric before resetting
+    // Loop lyrics
     if (this.lyricIdx >= this.lyrics.length) {
       const lastTime = this.lyrics[this.lyrics.length - 1].time;
       if (relTime >= lastTime + 3000) {
@@ -273,16 +380,21 @@ export class GameState {
     const cleaned = cleanLyricsText(text).trim();
     if (!cleaned || isStylePromptLine(cleaned)) return;
 
+    // Spawn item randomly when section / phrase spawns (40% chance)
+    if (Math.random() < 0.40) {
+      this._spawnItem();
+    }
+
     const chars: Char[] = [];
     let curX = 0, maxH = 0;
 
     for (const ch of cleaned) {
-      const fontSize = 34 + Math.random() * 22;   // 34–56px (bigger minimum)
+      const fontSize = 34 + Math.random() * 22;
       const font = FONTS[Math.floor(Math.random() * FONTS.length)];
       const pal = PALETTES[Math.floor(Math.random() * PALETTES.length)];
-      const rot = (Math.random() - 0.5) * 0.25;   // ±7° max (was ±13°)
+      const rot = (Math.random() - 0.5) * 0.25;
       const hp = /[\u4e00-\u9faf]/.test(ch) ? 3 : /[\u3040-\u30ff]/.test(ch) ? 2 : 1;
-      const relY = (Math.random() - 0.5) * 8;      // ±4px jitter (was ±9px)
+      const relY = (Math.random() - 0.5) * 8;
       const charW = fontSize * 1.1;
       chars.push({ ch, relX: curX, relY, fontSize, font, color: pal.text, glow: pal.glow, rot, hp, maxHp: hp, flash: 0 });
       curX += charW;
@@ -298,8 +410,8 @@ export class GameState {
     this.enemies.push({
       id: Math.random().toString(36).slice(2),
       x: spawnX, y: -(maxH + 20),
-      vx: (Math.random() - 0.5) * 1.4,
-      vy: 1.1 + Math.random() * 0.8,
+      vx: (Math.random() - 0.5) * 1.2,
+      vy: 1.0 + Math.random() * 0.7,
       chars, w: curX, h: maxH,
     });
   }
@@ -329,7 +441,7 @@ export class GameState {
     if (this.enemies.length === 0) return;
 
     const shooters = this.enemies
-      .filter(e => e.y > 0 && e.y < this.H * 0.75)
+      .filter(e => e.y > 0 && e.y < this.H * 0.7)
       .sort(() => Math.random() - 0.5)
       .slice(0, this.ENEMY_MAX_SHOOTERS);
 
@@ -337,21 +449,26 @@ export class GameState {
       const dx = this.px - e.x;
       const dy = this.py - e.y;
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      const speed = 5 + Math.random() * 4;
-      const spread = (Math.random() - 0.5) * 2.5;
+      const speed = 4 + Math.random() * 2.5; // Slightly slower bullets
 
-      const bulletCount = Math.min(
-        this.ENEMY_BASE_BULLETS + (this.enemies.length >= 6 ? 2 : this.enemies.length >= 3 ? 1 : 0),
-        this.difficulty === 'HARD' ? 7 : 5
-      );
-      for (let i = 0; i < bulletCount; i++) {
-        const fan = bulletCount > 1 ? (i - (bulletCount - 1) / 2) * 3.2 : 0;
+      if (this.difficulty === 'HARD') {
+        const bulletCount = 3;
+        for (let i = 0; i < bulletCount; i++) {
+          const fan = (i - 1) * 2.5;
+          this.enemyBullets.push({
+            x: e.x, y: e.y,
+            vx: (dx / dist) * speed + fan,
+            vy: (dy / dist) * speed,
+            r: 5, color: '#ff3355',
+          });
+        }
+      } else {
+        // EASY and NORMAL: Single aimed bullet (NO ANNOYING DANMAKU!)
         this.enemyBullets.push({
           x: e.x, y: e.y,
-          vx: (dx / dist) * speed + spread + fan,
+          vx: (dx / dist) * speed,
           vy: (dy / dist) * speed,
-          r: 5,
-          color: '#ff3355',
+          r: 4.5, color: '#ff3355',
         });
       }
     }

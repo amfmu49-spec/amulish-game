@@ -8,7 +8,7 @@ import { AudioEngine } from './audioEngine';
 import { Renderer } from './renderer';
 import { GameState } from './gameState';
 
-const APP_VERSION = 'v2.2.3';
+const APP_VERSION = 'v2.3.0';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d', { alpha: false })!;
@@ -126,17 +126,54 @@ if (urlAudio) {
 // ---- Audio time sync ----
 audio.setOnTime(t => state.syncTime(t));
 
-// ---- Game loop ----
 let lastTime = 0;
+let lastPhase = 'TITLE';
 function loop(ts: number) {
   const dt = Math.min(ts - lastTime, 50);
   lastTime = ts;
-  if (state.phase === 'PLAYING') { state.update(dt); renderer.render(state, W, H); }
-  else if (state.phase === 'TITLE') { renderer.renderTitle(state, W, H); }
-  else if (state.phase === 'RESULT') { renderer.renderResult(state, W, H); }
+
+  if (state.phase === 'PLAYING') {
+    state.update(dt);
+    renderer.render(state, W, H);
+  } else if (state.phase === 'TITLE') {
+    renderer.renderTitle(state, W, H);
+  } else if (state.phase === 'RESULT') {
+    if (lastPhase !== 'RESULT') {
+      showResult();
+    }
+    renderer.renderResult(state, W, H);
+  }
+  lastPhase = state.phase;
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
+
+function showResult() {
+  const rankColors: Record<string, string> = { S: '#ffe600', A: '#00ff66', B: '#00f3ff', C: '#ff6622' };
+  const h2 = document.querySelector('#result-panel h2') as HTMLElement | null;
+  const isDead = state.playerHp <= 0;
+
+  if (h2) {
+    if (isDead) {
+      h2.textContent = '💀 GAME OVER';
+      h2.style.color = '#ff2255';
+      h2.style.textShadow = '0 0 20px #ff2255';
+    } else {
+      h2.textContent = '🎉 STAGE CLEAR';
+      h2.style.color = '#ffe600';
+      h2.style.textShadow = '0 0 20px #ffe600';
+    }
+  }
+
+  document.getElementById('result-rank')!.textContent = isDead ? 'FAILED' : state.rank;
+  document.getElementById('result-rank')!.style.color = isDead ? '#ff2255' : rankColors[state.rank];
+  document.getElementById('r-score')!.textContent = state.score.toLocaleString();
+  document.getElementById('r-combo')!.textContent = state.maxCombo + 'x';
+  document.getElementById('r-acc')!.textContent = state.accuracy + '%';
+  document.getElementById('r-diff')!.textContent = state.difficulty;
+  document.getElementById('ui-panel')!.style.display = 'none';
+  document.getElementById('result-panel')!.style.display = 'flex';
+}
 
 // ---- Touch / Mouse ----
 let lastX = 0, lastY = 0, pressing = false;
@@ -456,15 +493,3 @@ function showTitle() {
   document.getElementById('ui-panel')!.style.display = 'flex';
   document.getElementById('result-panel')!.style.display = 'none';
 }
-function showResult() {
-  const rankColors: Record<string, string> = { S: '#ffe600', A: '#00ff66', B: '#00f3ff', C: '#ff6622' };
-  document.getElementById('result-rank')!.textContent = state.rank;
-  document.getElementById('result-rank')!.style.color = rankColors[state.rank];
-  document.getElementById('r-score')!.textContent = state.score.toLocaleString();
-  document.getElementById('r-combo')!.textContent = state.maxCombo + 'x';
-  document.getElementById('r-acc')!.textContent = state.accuracy + '%';
-  document.getElementById('r-diff')!.textContent = state.difficulty;
-  document.getElementById('ui-panel')!.style.display = 'none';
-  document.getElementById('result-panel')!.style.display = 'flex';
-}
-(window as any).__showResult = showResult;

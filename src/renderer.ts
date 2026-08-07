@@ -39,6 +39,31 @@ export class Renderer {
     this._stars(state.isFever);
     if (state.isFever || state.combo >= 50) this._speedlines(state.combo, state.isFever);
 
+    // Items
+    for (const item of state.items) {
+      ctx.save();
+      ctx.translate(item.x, item.y);
+      // Pulsing glow
+      const pulse = 1 + Math.sin(Date.now() * 0.008) * 0.15;
+      ctx.scale(pulse, pulse);
+
+      ctx.shadowColor = item.color;
+      ctx.shadowBlur = 16;
+      ctx.fillStyle = 'rgba(10,15,30,0.85)';
+      ctx.strokeStyle = item.color;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, item.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.font = `bold 16px sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.shadowBlur = 0;
+      ctx.fillText(item.label, 0, 1);
+      ctx.restore();
+    }
+
     // Enemies
     for (const e of state.enemies) {
       for (const c of e.chars) {
@@ -54,22 +79,22 @@ export class Renderer {
         ctx.textBaseline = 'middle';
         ctx.lineJoin = 'round';
 
-        // ---- Layer 1: Elegant thin dark outline ----
+        // Layer 1: Outline
         ctx.shadowBlur = 0;
         ctx.strokeStyle = 'rgba(0,0,0,0.85)';
         ctx.lineWidth = c.fontSize * 0.10;
         ctx.strokeText(c.ch, 0, 0);
 
-        // ---- Layer 2: Neon color glow stroke ----
+        // Layer 2: Glow
         ctx.shadowColor = c.flash > 0 ? '#ffffff' : c.glow;
         ctx.shadowBlur = c.flash > 0 ? 20 : (state.isFever ? 16 : 10);
         ctx.strokeStyle = c.flash > 0 ? '#ffffff' : c.color;
         ctx.lineWidth = c.fontSize * 0.05;
         ctx.strokeText(c.ch, 0, 0);
 
-        // ---- Layer 3: Vibrant fill ----
+        // Layer 3: Fill
         ctx.shadowBlur = 0;
-        ctx.fillStyle = c.flash > 0 ? '#ffffff' : '#ffffff';
+        ctx.fillStyle = '#ffffff';
         ctx.fillText(c.ch, 0, 0);
 
         // HP bar (kanji/kana have multiple HP)
@@ -96,7 +121,7 @@ export class Renderer {
       ctx.fill();
     }
 
-    // Enemy bullets (red danger shots, round shape)
+    // Enemy bullets
     ctx.shadowBlur = 14;
     for (const eb of state.enemyBullets) {
       ctx.shadowColor = '#ff3355';
@@ -104,7 +129,6 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(eb.x, eb.y, eb.r, 0, Math.PI * 2);
       ctx.fill();
-      // Inner bright core
       ctx.shadowBlur = 0;
       ctx.fillStyle = '#ffaaaa';
       ctx.beginPath();
@@ -146,8 +170,10 @@ export class Renderer {
       ctx.restore();
     }
 
-    // Player
-    this._player(state.px, state.py, state.shotLevel(), state.isFever);
+    // Player (with invulnerability blinking & shield aura)
+    if (state.invincibleTimer <= 0 || Math.floor(Date.now() / 80) % 2 === 0) {
+      this._player(state.px, state.py, state.shotLevel(), state.isFever, state.shieldTimer > 0);
+    }
 
     // HUD
     this._hud(state, W, H);
@@ -160,7 +186,6 @@ export class Renderer {
     ctx.fillStyle = '#000010';
     ctx.fillRect(0, 0, W, H);
     this._stars(false);
-    // Draw subtle title text on canvas (UI is handled by HTML overlay)
     ctx.save();
     ctx.globalAlpha = 0.12;
     ctx.font = `900 ${W * 0.18}px 'Dela Gothic One', sans-serif`;
@@ -204,10 +229,21 @@ export class Renderer {
     ctx.stroke();
   }
 
-  private _player(px: number, py: number, _level: number, fever: boolean) {
+  private _player(px: number, py: number, _level: number, fever: boolean, hasShield = false) {
     const ctx = this.ctx;
     ctx.save();
     ctx.translate(px, py);
+
+    // Shield barrier aura
+    if (hasShield) {
+      ctx.strokeStyle = '#00f3ff';
+      ctx.shadowColor = '#00f3ff';
+      ctx.shadowBlur = 18;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, 32 + Math.sin(Date.now() * 0.01) * 3, 0, Math.PI * 2);
+      ctx.stroke();
+    }
 
     // Engine glow
     const grad = ctx.createRadialGradient(0, 12, 0, 0, 12, 28);
@@ -255,8 +291,8 @@ export class Renderer {
       ctx.fillText(`${state.combo}x`, W - 12, 44);
     }
 
-    // Fever bar (thin bar at top)
-    const bW = W * 0.52; const bX = W / 2 - bW / 2;
+    // Fever bar (top bar)
+    const bW = W * 0.45; const bX = W / 2 - bW / 2;
     ctx.shadowBlur = 0;
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     ctx.beginPath(); ctx.roundRect(bX, 14, bW, 6, 3); ctx.fill();
@@ -267,6 +303,28 @@ export class Renderer {
       ctx.shadowColor = state.isFever ? '#ffe600' : '#ff00bb'; ctx.shadowBlur = 8;
       ctx.beginPath(); ctx.roundRect(bX, 14, bW * (state.fever / 100), 6, 3); ctx.fill();
     }
+
+    // HP Bar (Player Health Bar above bottom or below top HUD)
+    const hpW = 120;
+    const hpX = 12;
+    const hpY = 66;
+    const hpPct = Math.max(0, state.playerHp / state.maxPlayerHp);
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(hpX, hpY, hpW, 10, 5); ctx.fill(); ctx.stroke();
+
+    if (hpPct > 0) {
+      const hpColor = hpPct > 0.5 ? '#00ff66' : (hpPct > 0.25 ? '#ffe600' : '#ff2255');
+      ctx.fillStyle = hpColor;
+      ctx.shadowColor = hpColor; ctx.shadowBlur = 6;
+      ctx.beginPath(); ctx.roundRect(hpX, hpY, hpW * hpPct, 10, 5); ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    ctx.font = `bold 9px sans-serif`;
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(`HP ${Math.ceil(state.playerHp)}`, hpX + 6, hpY + 5);
 
     // FEVER text
     if (state.isFever) {
