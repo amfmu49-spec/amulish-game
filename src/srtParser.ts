@@ -6,50 +6,47 @@ export interface LyricLine {
   text: string;
 }
 
-// CONSERVATIVE style prompt detector - only catch lines that are PURELY style tags.
-// Japanese text is ALWAYS treated as lyrics. English lyrics should NOT be filtered.
-const PURE_STYLE_WORDS = new Set([
-  'cyberpunk', 'synthwave', 'edm', 'jpop', 'j-pop', 'kpop', 'k-pop',
-  'hiphop', 'hip-hop', 'orchestral', 'instrumental',
-]);
-
-export function isStylePromptLine(text: string): boolean {
-  if (!text || text.trim().length === 0) return true;
-  // Japanese text (hiragana, katakana, kanji) is ALWAYS valid lyrics
-  if (/[\u3040-\u30ff\u4e00-\u9faf]/.test(text)) return false;
-
-  const lower = text.toLowerCase().trim();
-
-  // Only reject lines that LOOK LIKE prompt headers
-  if (/^style:/i.test(lower)) return true;
-  if (/^genre:/i.test(lower)) return true;
-  if (/^prompt:/i.test(lower)) return true;
-
-  // Reject lines that are pure BPM/genre tags like "140 BPM, Male Vocals, Cyberpunk"
-  // These have NO normal English words - just comma-separated tech tags
-  const words = lower.split(/[\s,]+/).filter(Boolean);
-  if (words.length === 0) return true;
-
-  // Only filter if EVERY word is a pure style keyword or number/bpm pattern
-  const allStyleWords = words.every(w =>
-    PURE_STYLE_WORDS.has(w) ||
-    /^\d+$/.test(w) ||
-    /^\d+bpm$/.test(w) ||
-    ['male', 'female', 'vocal', 'vocals', 'upbeat', 'tempo', 'fast', 'slow'].includes(w)
-  );
-
-  // Must have multiple words AND all be style words to be a style prompt
-  return words.length >= 2 && allStyleWords;
-}
-
+// Remove section headers and meta formatting
 export function cleanLyricsText(raw: string): string {
   if (!raw) return '';
   return raw
-    // Remove bracket tags like [Verse 1], [Chorus]
-    .replace(/\[[^\]]{1,40}\]/g, '')
-    // Remove parenthesis tags like (Chorus), (Solo)
-    .replace(/\([^\)]{1,30}\)/g, '')
+    .replace(/\[[^\]]{1,40}\]/g, '')   // [Verse 1], [Chorus], etc.
+    .replace(/\([^\)]{1,30}\)/g, '')    // (Solo), (Repeat), etc.
+    .replace(/\*\*[^*]+\*\*/g, '')      // **bold** markdown
     .trim();
+}
+
+// Returns true if a line is NOT song lyrics:
+// - SUNO-style genre tags: "J-Pop · Cyberpunk · 140 BPM"
+// - Comma lists of style keywords: "upbeat, electronic, male vocals"
+// - UI labels, buttons, navigation text
+export function isStylePromptLine(text: string): boolean {
+  if (!text || text.trim().length === 0) return true;
+
+  const t = text.trim();
+
+  // Lines shorter than 2 chars are not lyrics
+  if (t.length < 2) return true;
+
+  // Japanese text (hiragana, katakana, kanji) → always lyrics
+  if (/[\u3040-\u30ff\u4e00-\u9faf]/.test(t)) return false;
+
+  // SUNO-specific: "J-Pop · Cyberpunk" style separators
+  if (t.includes(' · ') || t.includes(' • ')) return true;
+
+  // Lines that are only a URL
+  if (/^https?:\/\//.test(t)) return true;
+
+  // Lines that look like UI nav / buttons (short, title case, no punctuation, <25 chars)
+  if (t.length < 20 && /^[A-Z][a-z]/.test(t) && !/[,!?'"…\u3000-\u9fff]/.test(t) && !/\s/.test(t.slice(1))) return true;
+
+  // Lines with 3+ commas are likely style tag lists ("pop, electronic, dark, female")
+  if ((t.match(/,/g) || []).length >= 3) return true;
+
+  const lower = t.toLowerCase();
+  if (lower.startsWith('style:') || lower.startsWith('genre:') || lower.startsWith('prompt:')) return true;
+
+  return false;
 }
 
 export function parseSRT(raw: string): LyricLine[] {
@@ -100,7 +97,15 @@ export function parseRawText(raw: string): LyricLine[] {
   const lines: LyricLine[] = [];
   const rows = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
     .map(s => cleanLyricsText(s).trim())
-    .filter(s => s.length > 0 && !isStylePromptLine(s));
+    .filter(s => {
+      if (!s || s.length < 2) return false;
+      if (isStylePromptLine(s)) return false;
+      // Skip very long lines (probably UI text or paragraphs, not lyric phrases)
+      if (s.length > 120) return false;
+      // Skip lines that are all uppercase single words (likely UI labels)
+      if (/^[A-Z]{2,}$/.test(s)) return false;
+      return true;
+    });
 
   let time = 500;
   for (let i = 0; i < rows.length; i++) {

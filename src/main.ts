@@ -8,7 +8,7 @@ import { AudioEngine } from './audioEngine';
 import { Renderer } from './renderer';
 import { GameState } from './gameState';
 
-const APP_VERSION = 'v2.1.7';
+const APP_VERSION = 'v2.1.8';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d', { alpha: false })!;
@@ -161,8 +161,8 @@ canvas.addEventListener('mouseup', onEnd);
 // ---- SUNO Lyric-Extraction Bookmarklet ----
 const DEPLOY_URL = `https://amfmu49-spec.github.io/amulish-game/`;
 
-// Compact single-line bookmarklet (short = reliable in all browsers)
-const BOOKMARKLET = `javascript:(function(){var s='',a=document.querySelector('audio');if(a&&a.src&&!a.src.startsWith('blob:'))s=a.src;var m=(location.href+'|'+(a&&a.src||'')).match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);if(m)s='https://cdn1.suno.ai/'+m[1]+'.mp3';if(!s){alert('SUNO\u306e\u66f2\u30da\u30fc\u30b8\u3067\u5b9f\u884c\u3057\u3066\u306d');return;}var L='',e=document.querySelector('[data-testid="song-lyrics"]');if(e)L=e.innerText||'';if(!L){var found=[];[].forEach.call(document.querySelectorAll('div,p'),function(d){var t=d.childElementCount<5?d.innerText||'':'';var n=t.split('\\n').filter(function(x){return x.trim();}).length;if(n>=4&&t.length>50&&t.length<4000)found.push(t);});if(found.length)L=found.reduce(function(a,b){return b.length>a.length?b:a;});}var t=(document.title||'').replace(/\\s*[|\\-].*$/,'').trim()||'SUNO';var u='${DEPLOY_URL}?audio='+encodeURIComponent(s)+'&title='+encodeURIComponent(t);if(L)u+='&lyrics='+encodeURIComponent(L.substring(0,3000));window.open(u,'_blank');})();`;
+// Compact bookmarklet - picks the MOST SPECIFIC element with lyric-like lines
+const BOOKMARKLET = `javascript:(function(){var s='',a=document.querySelector('audio');if(a&&a.src&&!a.src.startsWith('blob:'))s=a.src;var m=(location.href+'|'+(a&&a.src||'')).match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);if(m)s='https://cdn1.suno.ai/'+m[1]+'.mp3';if(!s){alert('SUNO\u306e\u66f2\u30da\u30fc\u30b8\u3067\u5b9f\u884c\u3057\u3066\u306d');return;}function lyricScore(txt){var lines=txt.split('\\n').map(function(l){return l.trim();}).filter(function(l){return l.length>1;});if(lines.length<3)return 0;var ok=lines.filter(function(l){return l.length>=2&&l.length<=80&&!l.includes(' \u00b7 ')&&!l.includes(' \u2022 ')&&(l.match(/,/g)||[]).length<3;}).length;return ok/lines.length>=0.6?ok:0;}var L='',best=0;[].forEach.call(document.querySelectorAll('div,section,article,pre'),function(el){if(el.children.length>12)return;var t=(el.innerText||'').trim();if(t.length<30||t.length>5000)return;var sc=lyricScore(t);if(sc>best){best=sc;L=t;}});var tt=(document.title||'').replace(/[|\-].*$/,'').trim()||'SUNO';var u='${DEPLOY_URL}?audio='+encodeURIComponent(s)+'&title='+encodeURIComponent(tt);if(L)u+='&lyrics='+encodeURIComponent(L.substring(0,3000));window.open(u,'_blank');})();`;
 
 // ---- UI builder ----
 function buildUI() {
