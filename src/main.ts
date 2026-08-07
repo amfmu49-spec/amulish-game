@@ -1,5 +1,5 @@
 // =============================================
-// AMULISH - Lyric Shooter Game v2.1.2
+// AMULISH - Lyric Shooter Game v2.1.3
 // Pure Canvas 2D, SUNO Bookmarklet Lyric Shooter
 // =============================================
 
@@ -8,7 +8,7 @@ import { AudioEngine } from './audioEngine';
 import { Renderer } from './renderer';
 import { GameState } from './gameState';
 
-const APP_VERSION = 'v2.1.2';
+const APP_VERSION = 'v2.1.3';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d', { alpha: false })!;
@@ -116,7 +116,7 @@ canvas.addEventListener('mouseup', onEnd);
 
 // ---- SUNO Lyric-Extraction Bookmarklet ----
 const DEPLOY_URL = `https://amfmu49-spec.github.io/amulish-game/`;
-const BOOKMARKLET = `javascript:(function(){var src='';var a=document.querySelector('audio');if(a&&a.src&&!a.src.startsWith('blob:')){src=a.src;}if(!src){var m=location.href.match(/([a-f0-9]{8}\\-[a-f0-9]{4}\\-[a-f0-9]{4}\\-[a-f0-9]{4}\\-[a-f0-9]{12})/i);if(m)src='https://cdn1.suno.ai/'+m[1]+'.mp3';}if(!src&&a&&a.src){var m2=a.src.match(/([a-f0-9]{8}\\-[a-f0-9]{4}\\-[a-f0-9]{4}\\-[a-f0-9]{4}\\-[a-f0-9]{12})/i);if(m2)src='https://cdn1.suno.ai/'+m2[1]+'.mp3';}if(!src){alert('❌ SUNOで曲を再生するか、曲ページ(suno.com/song/...)で実行してください');return;}var lyricsText='';var lyricEls=document.querySelectorAll('[class*="lyric"],[class*="Lyric"],.whitespace-pre-wrap,[data-testid="song-lyrics"]');if(lyricEls.length>0){var texts=[];lyricEls.forEach(function(el){if(el.innerText&&el.innerText.trim())texts.push(el.innerText.trim());});lyricsText=texts.join('\\n');}if(!lyricsText){var allPs=document.querySelectorAll('p,div');var found=[];allPs.forEach(function(el){var t=el.innerText||'';if(t.split('\\n').length>=3&&t.length>30&&t.length<3000&&!t.includes('Cookie')&&!t.includes('Terms')){found.push(t.trim());}});if(found.length>0)lyricsText=found[0];}var title=(document.title||'SUNO Track').replace(' | Suno','').replace('Suno - ','').trim();var url='${DEPLOY_URL}?audio='+encodeURIComponent(src)+'&title='+encodeURIComponent(title);if(lyricsText){url+='&lyrics='+encodeURIComponent(lyricsText.substring(0,3000));}window.open(url,'_blank');})();`;
+const BOOKMARKLET = `javascript:(function(){var src='';var a=document.querySelector('audio');if(a&&a.src&&!a.src.startsWith('blob:')){src=a.src;}if(!src){var m=location.href.match(/([a-f0-9]{8}\\-[a-f0-9]{4}\\-[a-f0-9]{4}\\-[a-f0-9]{4}\\-[a-f0-9]{12})/i);if(m)src='https://cdn1.suno.ai/'+m[1]+'.mp3';}if(!src&&a&&a.src){var m2=a.src.match(/([a-f0-9]{8}\\-[a-f0-9]{4}\\-[a-f0-9]{4}\\-[a-f0-9]{4}\\-[a-f0-9]{12})/i);if(m2)src='https://cdn1.suno.ai/'+m2[1]+'.mp3';}if(!src){alert('❌ SUNOで曲を再生するか、曲ページ(suno.com/song/...)で実行してください');return;}var candidates=[];var els=document.querySelectorAll('[data-testid="song-lyrics"],[class*="Lyric"],[class*="lyric"],.whitespace-pre-wrap');els.forEach(function(el){if(el.tagName==='TEXTAREA'||el.tagName==='INPUT'||el.getAttribute('placeholder'))return;var txt=(el.innerText||'').trim();if(!txt)return;var lower=txt.toLowerCase();if(lower.includes('bpm')&&lower.includes('vocal')&&lower.includes(','))return;if(lower.startsWith('style:')||lower.startsWith('genre:')||lower.startsWith('prompt:'))return;candidates.push(txt);});var lyricsText='';for(var i=0;i<candidates.length;i++){if(/[\\u3040-\\u30ff\\u4e00-\\u9faf]/.test(candidates[i])){lyricsText=candidates[i];break;}}if(!lyricsText&&candidates.length>0){lyricsText=candidates[0];}var title=(document.title||'SUNO Track').replace(' | Suno','').replace('Suno - ','').trim();var url='${DEPLOY_URL}?audio='+encodeURIComponent(src)+'&title='+encodeURIComponent(title);if(lyricsText){url+='&lyrics='+encodeURIComponent(lyricsText.substring(0,3000));}window.open(url,'_blank');})();`;
 
 // ---- UI builder ----
 function buildUI() {
@@ -298,7 +298,7 @@ function buildUI() {
           ① 下のボタンを押してコードをコピー<br>
           ② ブックマークに登録<br>
           ③ SUNOで好きな曲を再生中に押すだけ！<br>
-          ※ SUNO画面の歌詞を自動検出して敵にします！
+          ※ 本物の歌詞を自動検出して敵にします！
         </div>
         <button class="bm-btn" id="bm-copy">📋 ブックマークレットをコピー</button>
       </div>

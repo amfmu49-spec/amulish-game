@@ -1,4 +1,4 @@
-// SRT / LRC / Plain Text Lyrics parser with meta-tag cleaning
+// SRT / LRC / Plain Text Lyrics parser with meta-tag and style-prompt filtering
 export interface LyricLine {
   id: string;
   time: number; // start time in ms
@@ -6,10 +6,37 @@ export interface LyricLine {
   text: string;
 }
 
+const STYLE_KEYWORDS = [
+  'cyberpunk', 'j-pop', 'jpop', 'synthwave', 'bpm', 'vocal', 'vocals', 'male', 'female',
+  'electronic', 'edm', 'upbeat', 'pop', 'rock', 'metal', 'acoustic', 'guitar', 'anime',
+  'energetic', 'fast', 'slow', 'dark', 'bright', 'futuristic', 'heavy', 'tempo', 'dance',
+  'hiphop', 'rap', 'piano', 'orchestral', 'synth', 'bass', 'beat', 'melody', 'track'
+];
+
+export function isStylePromptLine(text: string): boolean {
+  if (!text) return true;
+  const lower = text.toLowerCase().trim();
+
+  // Explicit check for style lines
+  if (lower.startsWith('style:') || lower.startsWith('genre:') || lower.startsWith('prompt:')) return true;
+
+  const words = lower.split(/[\s,._\-／/]+/).filter(Boolean);
+  if (words.length === 0) return true;
+
+  let matchCount = 0;
+  for (const w of words) {
+    if (STYLE_KEYWORDS.includes(w) || /^\d+bpm$/.test(w) || /^\d+$/.test(w)) {
+      matchCount++;
+    }
+  }
+  // If half or more of the words are music style tags, it's a style prompt, NOT song lyrics!
+  return (matchCount / words.length) >= 0.45;
+}
+
 export function cleanLyricsText(raw: string): string {
   if (!raw) return '';
   return raw
-    // Remove all bracket meta tags: [Verse 1], [Chorus], [Bridge], [Guitar Solo], [Intro], [Outro], [Drop], etc.
+    // Remove bracket meta tags: [Verse 1], [Chorus], [Bridge], [Guitar Solo], [Intro], [Outro], [Drop], etc.
     .replace(/\[[^\]]*\]/g, '')
     // Remove parentheses meta tags: (Chorus), (Solo), (Repeat x2), etc.
     .replace(/\([^\)]*\)/g, '')
@@ -40,7 +67,7 @@ export function parseSRT(raw: string): LyricLine[] {
     const rawText = parts.slice(2).join(' ').replace(/<[^>]+>/g, '').trim();
     const text    = cleanLyricsText(rawText);
 
-    if (text) {
+    if (text && !isStylePromptLine(text)) {
       lines.push({ id: block.substring(0, 20) + startMs, time: startMs, end: endMs, text });
     }
   }
@@ -56,7 +83,9 @@ export function parseLRC(raw: string): LyricLine[] {
     if (!match) continue;
     const ms = parseInt(match[1]) * 60000 + parseInt(match[2]) * 1000 + parseInt(match[3].padEnd(3, '0').substring(0, 3));
     const text = cleanLyricsText(match[4]);
-    if (text) lines.push({ id: row + ms, time: ms, end: ms + 3000, text });
+    if (text && !isStylePromptLine(text)) {
+      lines.push({ id: row + ms, time: ms, end: ms + 3000, text });
+    }
   }
   return lines.sort((a, b) => a.time - b.time);
 }
@@ -66,12 +95,14 @@ export function parseRawText(raw: string): LyricLine[] {
   const cleanedText = cleanLyricsText(raw);
   const rawRows = cleanedText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
     .map(s => s.trim())
-    .filter(s => s.length > 0);
+    .filter(s => s.length > 0 && !isStylePromptLine(s));
 
   const phrases: string[] = [];
   for (const row of rawRows) {
     if (row.length > 14) {
-      const sub = row.split(/[、,。.！!？?\s]+/).map(s => cleanLyricsText(s)).filter(s => s.length > 0);
+      const sub = row.split(/[、,。.！!？?\s]+/)
+        .map(s => cleanLyricsText(s))
+        .filter(s => s.length > 0 && !isStylePromptLine(s));
       if (sub.length > 0) phrases.push(...sub);
       else phrases.push(row);
     } else {
@@ -82,7 +113,7 @@ export function parseRawText(raw: string): LyricLine[] {
   let time = 1000;
   for (let i = 0; i < phrases.length; i++) {
     const text = phrases[i].trim();
-    if (!text) continue;
+    if (!text || isStylePromptLine(text)) continue;
     lines.push({
       id: 'raw_' + i + '_' + Math.random(),
       time,
