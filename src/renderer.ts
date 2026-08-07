@@ -54,22 +54,20 @@ export class Renderer {
         ctx.textBaseline = 'middle';
         ctx.lineJoin = 'round';
 
-        // ---- Layer 1: Thick black outline (no glow, pure legibility) ----
+        // ---- Layer 1: Elegant thin dark outline ----
         ctx.shadowBlur = 0;
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = c.fontSize * 0.28;
+        ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+        ctx.lineWidth = c.fontSize * 0.10;
         ctx.strokeText(c.ch, 0, 0);
 
-        // ---- Layer 2: Neon color glow (shadow only — doesn't muddy the fill) ----
-        // Draw a slightly thinner colored stroke WITH glow shadow so the halo
-        // bleeds outward, not inward over the text body
+        // ---- Layer 2: Neon color glow stroke ----
         ctx.shadowColor = c.flash > 0 ? '#ffffff' : c.glow;
-        ctx.shadowBlur = c.flash > 0 ? 28 : (state.isFever ? 22 : 14);
+        ctx.shadowBlur = c.flash > 0 ? 20 : (state.isFever ? 16 : 10);
         ctx.strokeStyle = c.flash > 0 ? '#ffffff' : c.color;
-        ctx.lineWidth = c.fontSize * 0.1;
+        ctx.lineWidth = c.fontSize * 0.05;
         ctx.strokeText(c.ch, 0, 0);
 
-        // ---- Layer 3: Bright white fill — always crisp and readable ----
+        // ---- Layer 3: Vibrant fill ----
         ctx.shadowBlur = 0;
         ctx.fillStyle = c.flash > 0 ? '#ffffff' : '#ffffff';
         ctx.fillText(c.ch, 0, 0);

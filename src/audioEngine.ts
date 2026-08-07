@@ -17,58 +17,39 @@ export class AudioEngine {
     if (this.audio) { this.audio.pause(); this.audio.src = ''; }
     this.stopPresetBeat();
 
-    // Use XHR to monitor download progress percentage
-    const xhr = new XMLHttpRequest();
-    xhr.open('GET', url, true);
-    xhr.responseType = 'blob';
+    // Use direct HTML5 Audio element to avoid CORS XHR blocks on Suno CDN
+    const a = new Audio();
+    this.audio = a;
+    this._currentTime = 0;
 
-    xhr.onprogress = (e) => {
-      if (e.lengthComputable && onProgress) {
-        const pct = Math.min(99, Math.round((e.loaded / e.total) * 100));
-        onProgress(pct);
-      }
-    };
+    onProgress?.(15);
 
-    xhr.onload = () => {
-      if (xhr.status === 200 || xhr.status === 0) {
-        const blobUrl = URL.createObjectURL(xhr.response);
-        this.audio = new Audio(blobUrl);
-        this.audio.addEventListener('timeupdate', () => {
-          if (this.audio) {
-            this._currentTime = this.audio.currentTime * 1000;
-            this.onTime?.(this._currentTime);
-          }
-        });
-        if (onProgress) onProgress(100);
-        this.audio.play().catch(() => {});
-      } else {
-        this._fallbackAudioLoad(url, onProgress);
-      }
-    };
+    a.addEventListener('loadstart', () => onProgress?.(25));
+    a.addEventListener('loadedmetadata', () => onProgress?.(55));
+    a.addEventListener('canplay', () => onProgress?.(85));
+    a.addEventListener('canplaythrough', () => onProgress?.(100));
 
-    xhr.onerror = () => {
-      this._fallbackAudioLoad(url, onProgress);
-    };
-
-    xhr.send();
-  }
-
-  private _fallbackAudioLoad(url: string, onProgress?: (pct: number) => void) {
-    this.audio = new Audio(url);
-    this.audio.addEventListener('progress', () => {
-      if (this.audio && this.audio.buffered.length > 0 && this.audio.duration) {
-        const pct = Math.min(99, Math.round((this.audio.buffered.end(0) / this.audio.duration) * 100));
+    a.addEventListener('progress', () => {
+      if (a.duration > 0 && a.buffered.length > 0) {
+        const pct = Math.min(99, Math.round((a.buffered.end(0) / a.duration) * 100));
         onProgress?.(pct);
       }
     });
-    this.audio.addEventListener('canplaythrough', () => onProgress?.(100));
-    this.audio.addEventListener('timeupdate', () => {
-      if (this.audio) {
-        this._currentTime = this.audio.currentTime * 1000;
-        this.onTime?.(this._currentTime);
-      }
+
+    a.addEventListener('timeupdate', () => {
+      this._currentTime = a.currentTime * 1000;
+      this.onTime?.(this._currentTime);
     });
-    this.audio.play().catch(() => {});
+
+    a.addEventListener('ended', () => {
+      this._currentTime = 0;
+    });
+
+    a.src = url;
+    a.load();
+    a.play().catch(() => {
+      // Browser user gesture will trigger playback on start touch
+    });
   }
 
   setPresetBeat(bpm: number) {
@@ -137,7 +118,12 @@ export class AudioEngine {
     this._beep(freqs[Math.min(Math.floor(combo / 20), freqs.length - 1)], 0.12, 0.1);
   }
 
-  resume() { this.getCtx().resume().catch(() => {}); }
+  resume() {
+    this.getCtx().resume().catch(() => {});
+    if (this.audio && this.audio.paused) {
+      this.audio.play().catch(() => {});
+    }
+  }
   pause() { this.audio?.pause(); this.stopPresetBeat(); }
   seek(ms: number) { if (this.audio) this.audio.currentTime = ms / 1000; }
   currentTime() { return this._currentTime; }

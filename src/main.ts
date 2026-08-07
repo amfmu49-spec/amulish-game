@@ -129,11 +129,13 @@ function buildUI() {
         display: flex; flex-direction: column; align-items: center; gap: 2px; position: relative;
       }
       #ui-panel h1 {
-        font-size: 2.5rem; color: #ffffff; margin: 0;
-        -webkit-text-stroke: 1.5px #000000;
-        text-shadow: 0 2px 10px rgba(0,243,255,0.8), 0 0 2px #00f3ff;
+        font-size: 2.5rem; margin: 0;
+        background: linear-gradient(135deg, #ffffff 40%, #00f3ff 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        filter: drop-shadow(0 2px 10px rgba(0, 243, 255, 0.45));
         letter-spacing: 5px;
-        line-height: 1;
+        line-height: 1.1;
       }
       .logo-sub-row {
         display: flex; align-items: center; gap: 8px; margin-top: 2px;
@@ -359,9 +361,10 @@ function updateAudioProgress(pct: number) {
   const fill = document.getElementById('progress-bar-fill');
   const txt = document.getElementById('progress-text');
   const title = document.querySelector('.suno-status-title');
-  if (fill) fill.style.width = pct + '%';
-  if (txt) txt.textContent = pct + '%';
-  if (pct >= 100 && title) {
+  const displayPct = Math.max(0, Math.min(100, pct));
+  if (fill) fill.style.width = Math.max(6, displayPct) + '%';
+  if (txt) txt.textContent = displayPct + '%';
+  if (displayPct >= 100 && title) {
     (title as HTMLElement).textContent = '✅ SUNO曲の読み込み完了！';
     (title as HTMLElement).style.color = '#00ff66';
   }
