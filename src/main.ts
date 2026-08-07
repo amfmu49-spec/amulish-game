@@ -8,7 +8,7 @@ import { AudioEngine } from './audioEngine';
 import { Renderer } from './renderer';
 import { GameState } from './gameState';
 
-const APP_VERSION = 'v2.1.6';
+const APP_VERSION = 'v2.1.7';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d', { alpha: false })!;
@@ -161,60 +161,8 @@ canvas.addEventListener('mouseup', onEnd);
 // ---- SUNO Lyric-Extraction Bookmarklet ----
 const DEPLOY_URL = `https://amfmu49-spec.github.io/amulish-game/`;
 
-// Bookmarklet: aggressively scrape SUNO page for lyrics text, try many selectors
-const BOOKMARKLET = `javascript:(function(){
-var src='';
-var a=document.querySelector('audio');
-if(a&&a.src&&!a.src.startsWith('blob:'))src=a.src;
-if(!src){var m=location.href.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);if(m)src='https://cdn1.suno.ai/'+m[1]+'.mp3';}
-if(!src&&a&&a.src){var m2=a.src.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);if(m2)src='https://cdn1.suno.ai/'+m2[1]+'.mp3';}
-if(!src){alert('\\u274c SUNO\\u306e\\u66f2\\u30da\\u30fc\\u30b8(suno.com/song/...)\\u3067\\u5b9f\\u884c\\u3057\\u3066\\u304f\\u3060\\u3055\\u3044');return;}
-
-var lyricsText='';
-
-// Strategy 1: Specific SUNO data-testid
-var el=document.querySelector('[data-testid="song-lyrics"]');
-if(el&&el.innerText&&el.innerText.trim().length>20)lyricsText=el.innerText.trim();
-
-// Strategy 2: Look for whitespace-pre elements (SUNO renders lyrics in pre-wrap divs)
-if(!lyricsText){
-  var divs=document.querySelectorAll('div,p,section');
-  var best='';
-  divs.forEach(function(d){
-    var t=(d.innerText||'').trim();
-    if(t.length<30||t.length>5000)return;
-    var lines=t.split('\\n').filter(function(l){return l.trim().length>0;});
-    if(lines.length<3)return;
-    // Skip if it looks like a menu or navigation
-    if(t.includes('Login')||t.includes('Sign Up')||t.includes('Cookie'))return;
-    // Prefer text with Japanese or that looks like song lyrics (multiple short lines)
-    var avgLen=t.length/lines.length;
-    if(avgLen>3&&avgLen<80&&lines.length>3){
-      if(t.length>best.length)best=t;
-    }
-  });
-  if(best)lyricsText=best;
-}
-
-// Strategy 3: Look for any element with class containing lyric/Lyric
-if(!lyricsText){
-  var lyricEls=document.querySelectorAll('[class*="lyric"],[class*="Lyric"],[class*="lyrics"],[class*="Lyrics"]');
-  lyricEls.forEach(function(el){
-    var t=(el.innerText||'').trim();
-    if(t.length>lyricsText.length&&t.length>20&&t.length<5000)lyricsText=t;
-  });
-}
-
-var title=(document.title||'SUNO Track').replace(' | Suno','').replace('Suno - ','').trim();
-var url='${DEPLOY_URL}?audio='+encodeURIComponent(src)+'&title='+encodeURIComponent(title);
-if(lyricsText){
-  url+='&lyrics='+encodeURIComponent(lyricsText.substring(0,4000));
-  url+='&dbg='+encodeURIComponent(lyricsText.substring(0,60));
-}else{
-  url+='&dbg=NO_LYRICS_FOUND';
-}
-window.open(url,'_blank');
-})();`.replace(/\n/g, '');
+// Compact single-line bookmarklet (short = reliable in all browsers)
+const BOOKMARKLET = `javascript:(function(){var s='',a=document.querySelector('audio');if(a&&a.src&&!a.src.startsWith('blob:'))s=a.src;var m=(location.href+'|'+(a&&a.src||'')).match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);if(m)s='https://cdn1.suno.ai/'+m[1]+'.mp3';if(!s){alert('SUNO\u306e\u66f2\u30da\u30fc\u30b8\u3067\u5b9f\u884c\u3057\u3066\u306d');return;}var L='',e=document.querySelector('[data-testid="song-lyrics"]');if(e)L=e.innerText||'';if(!L){var found=[];[].forEach.call(document.querySelectorAll('div,p'),function(d){var t=d.childElementCount<5?d.innerText||'':'';var n=t.split('\\n').filter(function(x){return x.trim();}).length;if(n>=4&&t.length>50&&t.length<4000)found.push(t);});if(found.length)L=found.reduce(function(a,b){return b.length>a.length?b:a;});}var t=(document.title||'').replace(/\\s*[|\\-].*$/,'').trim()||'SUNO';var u='${DEPLOY_URL}?audio='+encodeURIComponent(s)+'&title='+encodeURIComponent(t);if(L)u+='&lyrics='+encodeURIComponent(L.substring(0,3000));window.open(u,'_blank');})();`;
 
 // ---- UI builder ----
 function buildUI() {
