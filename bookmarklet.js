@@ -1,6 +1,6 @@
 (function () {
   (async function () {
-    const VER = 'v2.2.3';
+    const VER = 'v2.3.0';
     const AMULISH_URL = 'https://amfmu49-spec.github.io/amulish-game/';
 
     // --- Show toast/overlay notification on SUNO page ---
