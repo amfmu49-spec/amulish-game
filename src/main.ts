@@ -361,9 +361,21 @@ function updateAudioProgress(pct: number) {
   const fill = document.getElementById('progress-bar-fill');
   const txt = document.getElementById('progress-text');
   const title = document.querySelector('.suno-status-title');
+
+  if (pct === -1) {
+    if (fill) fill.style.width = '100%';
+    if (fill) fill.style.background = '#ff3355';
+    if (txt) txt.textContent = '準備完了';
+    if (title) {
+      (title as HTMLElement).textContent = '🎵 SUNO曲セット完了 («START»で再生)';
+      (title as HTMLElement).style.color = '#ffe600';
+    }
+    return;
+  }
+
   const displayPct = Math.max(0, Math.min(100, pct));
-  if (fill) fill.style.width = Math.max(6, displayPct) + '%';
-  if (txt) txt.textContent = displayPct + '%';
+  if (fill) fill.style.width = Math.max(4, displayPct) + '%';
+  if (txt) txt.textContent = displayPct > 0 ? displayPct + '%' : '準備中... (STARTで起動)';
   if (displayPct >= 100 && title) {
     (title as HTMLElement).textContent = '✅ SUNO曲の読み込み完了！';
     (title as HTMLElement).style.color = '#00ff66';

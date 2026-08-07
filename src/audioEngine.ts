@@ -17,23 +17,37 @@ export class AudioEngine {
     if (this.audio) { this.audio.pause(); this.audio.src = ''; }
     this.stopPresetBeat();
 
-    // Use direct HTML5 Audio element to avoid CORS XHR blocks on Suno CDN
     const a = new Audio();
     this.audio = a;
     this._currentTime = 0;
 
-    onProgress?.(15);
-
-    a.addEventListener('loadstart', () => onProgress?.(25));
-    a.addEventListener('loadedmetadata', () => onProgress?.(55));
-    a.addEventListener('canplay', () => onProgress?.(85));
-    a.addEventListener('canplaythrough', () => onProgress?.(100));
-
-    a.addEventListener('progress', () => {
+    // Report actual network progress
+    const checkProgress = () => {
       if (a.duration > 0 && a.buffered.length > 0) {
-        const pct = Math.min(99, Math.round((a.buffered.end(0) / a.duration) * 100));
+        const pct = Math.min(100, Math.round((a.buffered.end(0) / a.duration) * 100));
         onProgress?.(pct);
       }
+    };
+
+    a.addEventListener('loadedmetadata', () => {
+      checkProgress();
+    });
+
+    a.addEventListener('progress', () => {
+      checkProgress();
+    });
+
+    a.addEventListener('canplay', () => {
+      checkProgress();
+    });
+
+    a.addEventListener('canplaythrough', () => {
+      onProgress?.(100);
+    });
+
+    a.addEventListener('error', () => {
+      // Audio load error (e.g. CORS block or expired URL)
+      onProgress?.(-1);
     });
 
     a.addEventListener('timeupdate', () => {
@@ -45,11 +59,19 @@ export class AudioEngine {
       this._currentTime = 0;
     });
 
+    a.preload = 'auto';
     a.src = url;
     a.load();
-    a.play().catch(() => {
-      // Browser user gesture will trigger playback on start touch
-    });
+    // Attempt play (may be deferred by browser until user gesture)
+    a.play().catch(() => {});
+  }
+
+  playMusic() {
+    if (this.audio) {
+      this.audio.play().catch(err => {
+        console.warn('Audio play failed:', err);
+      });
+    }
   }
 
   setPresetBeat(bpm: number) {
@@ -120,9 +142,7 @@ export class AudioEngine {
 
   resume() {
     this.getCtx().resume().catch(() => {});
-    if (this.audio && this.audio.paused) {
-      this.audio.play().catch(() => {});
-    }
+    this.playMusic();
   }
   pause() { this.audio?.pause(); this.stopPresetBeat(); }
   seek(ms: number) { if (this.audio) this.audio.currentTime = ms / 1000; }
