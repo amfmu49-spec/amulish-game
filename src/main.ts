@@ -1,5 +1,5 @@
 // =============================================
-// AMULISH - Lyric Shooter Game v1.2.0
+// AMULISH - Lyric Shooter Game v1.2.1
 // Pure Canvas 2D, no frameworks, max performance
 // =============================================
 
@@ -8,7 +8,7 @@ import { AudioEngine } from './audioEngine';
 import { Renderer } from './renderer';
 import { GameState } from './gameState';
 
-const APP_VERSION = 'v1.2.0';
+const APP_VERSION = 'v1.2.1';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d', { alpha: false })!;
@@ -35,9 +35,20 @@ const renderer = new Renderer(ctx, 0, 0);
 resize();
 window.addEventListener('resize', resize);
 
+// Helper to convert any SUNO song URL or page link into CDN mp3 link
+function resolveSunoUrl(rawUrl: string): string {
+  if (!rawUrl) return '';
+  const uuidMatch = rawUrl.match(/([a-f0-9]{8}\-[a-f0-9]{4}\-[a-f0-9]{4}\-[a-f0-9]{4}\-[a-f0-9]{12})/i);
+  if (uuidMatch) {
+    return `https://cdn1.suno.ai/${uuidMatch[1]}.mp3`;
+  }
+  return rawUrl;
+}
+
 // ---- Check URL params (from bookmarklet) ----
 const params = new URLSearchParams(location.search);
-const urlAudio = params.get('audio');
+const rawAudio = params.get('audio');
+const urlAudio = rawAudio ? resolveSunoUrl(rawAudio) : null;
 const urlTitle = params.get('title') || 'SUNO Track';
 
 if (urlAudio) {
@@ -95,9 +106,9 @@ canvas.addEventListener('mousedown', e => onStart(e.clientX, e.clientY));
 canvas.addEventListener('mousemove', e => onMove(e.clientX, e.clientY));
 canvas.addEventListener('mouseup', onEnd);
 
-// ---- Bookmarklet code ----
+// ---- Intelligent Bookmarklet code ----
 const DEPLOY_URL = `https://amfmu49-spec.github.io/amulish-game/`;
-const BOOKMARKLET = `javascript:(function(){var a=document.querySelector('audio');if(!a||!a.src){alert('❌ SUNOで曲を再生してから押してください');return;}var t=document.title.replace(' | Suno','').trim();window.open('${DEPLOY_URL}?audio='+encodeURIComponent(a.src)+'&title='+encodeURIComponent(t),'_blank');})();`;
+const BOOKMARKLET = `javascript:(function(){var src='';var a=document.querySelector('audio');if(a&&a.src&&!a.src.startsWith('blob:')){src=a.src;}if(!src){var m=location.href.match(/([a-f0-9]{8}\\-[a-f0-9]{4}\\-[a-f0-9]{4}\\-[a-f0-9]{4}\\-[a-f0-9]{12})/i);if(m)src='https://cdn1.suno.ai/'+m[1]+'.mp3';}if(!src&&a&&a.src){var m2=a.src.match(/([a-f0-9]{8}\\-[a-f0-9]{4}\\-[a-f0-9]{4}\\-[a-f0-9]{4}\\-[a-f0-9]{12})/i);if(m2)src='https://cdn1.suno.ai/'+m2[1]+'.mp3';}if(!src){alert('❌ SUNOで曲を再生するか、曲ページ(suno.com/song/...)で実行してください');return;}var t=(document.title||'SUNO Track').replace(' | Suno','').replace('Suno - ','').trim();window.open('${DEPLOY_URL}?audio='+encodeURIComponent(src)+'&title='+encodeURIComponent(t),'_blank');})();`;
 
 // ---- UI builder ----
 function buildUI() {
@@ -117,19 +128,19 @@ function buildUI() {
         backdrop-filter: blur(18px);
         border: 1px solid rgba(0,243,255,0.4);
         border-radius: 24px;
-        padding: 24px 20px 20px;
+        padding: 22px 18px 18px;
         display: flex; flex-direction: column; align-items: center;
-        gap: 14px;
-        max-width: 340px; width: 90%;
+        gap: 12px;
+        max-width: 340px; width: 92%;
         box-shadow: 0 0 50px rgba(0,243,255,0.15), inset 0 1px 0 rgba(255,255,255,0.08);
       }
 
-      /* Logo Header with crisp text & version badge */
+      /* Logo Header */
       .logo-box {
         display: flex; flex-direction: column; align-items: center; gap: 2px; position: relative;
       }
       #ui-panel h1 {
-        font-size: 2.5rem; margin: 0;
+        font-size: 2.4rem; margin: 0;
         background: linear-gradient(135deg, #ffffff 40%, #00f3ff 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
@@ -153,13 +164,13 @@ function buildUI() {
         background: rgba(0,243,255,0.08);
         border: 1px solid rgba(0,243,255,0.35);
         border-radius: 14px;
-        padding: 12px 14px;
-        display: none; flex-direction: column; gap: 8px;
+        padding: 10px 12px;
+        display: none; flex-direction: column; gap: 6px;
       }
-      .suno-status-title { font-size: 0.72rem; color: #00f3ff; letter-spacing: 1px; }
-      .suno-status-track { font-size: 0.65rem; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .suno-status-title { font-size: 0.7rem; color: #00f3ff; letter-spacing: 1px; }
+      .suno-status-track { font-size: 0.62rem; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .progress-bar-bg {
-        width: 100%; height: 8px;
+        width: 100%; height: 7px;
         background: rgba(255,255,255,0.12);
         border-radius: 4px; overflow: hidden;
       }
@@ -167,26 +178,54 @@ function buildUI() {
         width: 0%; height: 100%;
         background: linear-gradient(90deg, #00f3ff, #ffe600);
         border-radius: 4px;
-        transition: width 0.15s ease-out;
+        transition: width 0.2s ease-out;
       }
-      .progress-text { font-size: 0.62rem; color: rgba(255,255,255,0.7); text-align: right; }
+      .progress-text { font-size: 0.6rem; color: rgba(255,255,255,0.7); text-align: right; }
+
+      /* SUNO URL Paste Box */
+      .url-box {
+        width: 100%;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(0,243,255,0.25);
+        border-radius: 14px;
+        padding: 10px;
+        display: flex; flex-direction: column; gap: 6px;
+      }
+      .url-box-title { font-size: 0.65rem; color: #00f3ff; letter-spacing: 1px; }
+      .url-input-row { display: flex; gap: 6px; width: 100%; }
+      .url-input-row input {
+        flex: 1; padding: 7px 10px;
+        background: rgba(0,0,0,0.4);
+        border: 1px solid rgba(255,255,255,0.2);
+        border-radius: 8px; color: #fff;
+        font-size: 0.65rem; font-family: inherit;
+        outline: none;
+      }
+      .url-input-row input:focus { border-color: #00f3ff; }
+      .url-input-row button {
+        padding: 7px 12px;
+        background: #00f3ff; border: none; border-radius: 8px;
+        color: #000; font-family: 'Dela Gothic One', sans-serif;
+        font-size: 0.68rem; cursor: pointer;
+        transition: opacity 0.2s;
+      }
+      .url-input-row button:hover { opacity: 0.85; }
 
       /* Bookmarklet section */
       .bm-box {
         width: 100%;
-        background: rgba(255,230,0,0.06);
-        border: 1px solid rgba(255,230,0,0.3);
+        background: rgba(255,230,0,0.05);
+        border: 1px solid rgba(255,230,0,0.25);
         border-radius: 14px;
-        padding: 12px 14px;
-        display: flex; flex-direction: column; gap: 8px;
+        padding: 10px 12px;
+        display: flex; flex-direction: column; gap: 6px;
       }
-      .bm-title { font-size: 0.68rem; color: #ffe600; letter-spacing: 2px; }
-      .bm-desc { font-size: 0.62rem; color: rgba(255,255,255,0.55); line-height: 1.5; }
+      .bm-title { font-size: 0.65rem; color: #ffe600; letter-spacing: 1px; }
       .bm-btn {
-        width: 100%; padding: 9px;
+        width: 100%; padding: 8px;
         background: rgba(255,230,0,0.15);
         border: 1px solid #ffe600; border-radius: 10px;
-        color: #ffe600; font-family: inherit; font-size: 0.72rem;
+        color: #ffe600; font-family: inherit; font-size: 0.68rem;
         cursor: pointer; letter-spacing: 1px;
         transition: background 0.2s;
       }
@@ -212,7 +251,7 @@ function buildUI() {
 
       /* Start button */
       .start-btn {
-        width: 100%; padding: 14px;
+        width: 100%; padding: 13px;
         background: linear-gradient(135deg, #00b4d8, #0077b6);
         border: none; border-radius: 14px;
         color: white; font-size: 1.05rem;
@@ -222,7 +261,7 @@ function buildUI() {
         transition: opacity 0.2s;
       }
       .start-btn:hover { opacity: 0.88; }
-      .tap-hint { font-size: 0.62rem; color: rgba(0,243,255,0.5); letter-spacing: 2px; animation: blink 1.2s infinite; }
+      .tap-hint { font-size: 0.6rem; color: rgba(0,243,255,0.5); letter-spacing: 2px; animation: blink 1.2s infinite; }
       @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
       /* Result */
@@ -262,24 +301,28 @@ function buildUI() {
         </div>
       </div>
 
-      <!-- SUNO Loading status box (shown if urlAudio) -->
+      <!-- SUNO Loading status box -->
       <div class="suno-status-box" id="suno-status-box">
         <div class="suno-status-title">🎵 SUNO曲を読み込み中...</div>
         <div class="suno-status-track" id="suno-track-name">${urlTitle}</div>
         <div class="progress-bar-bg">
           <div class="progress-bar-fill" id="progress-bar-fill"></div>
         </div>
-        <div class="progress-text" id="progress-text">0%</div>
+        <div class="progress-text" id="progress-text">準備中...</div>
+      </div>
+
+      <!-- Direct URL Input -->
+      <div class="url-box">
+        <div class="url-box-title">🔗 SUNOの曲URL / MP3を貼り付け</div>
+        <div class="url-input-row">
+          <input type="text" id="suno-input" placeholder="https://suno.com/song/... または MP3" />
+          <button id="btn-load-url">セット</button>
+        </div>
       </div>
 
       <!-- Bookmarklet -->
       <div class="bm-box">
         <div class="bm-title">⚡ SUNO連携ブックマークレット</div>
-        <div class="bm-desc">
-          ① 下のボタンを押してコードをコピー<br>
-          ② ブラウザのブックマークに登録<br>
-          ③ SUNOで好きな曲を再生中に押すだけ！
-        </div>
         <button class="bm-btn" id="bm-copy">📋 ブックマークレットをコピー</button>
       </div>
 
@@ -312,6 +355,24 @@ function buildUI() {
     </div>
   `;
   document.body.appendChild(overlay);
+
+  // Manual URL paste handler
+  const loadUrlBtn = document.getElementById('btn-load-url')!;
+  const inputEl = document.getElementById('suno-input') as HTMLInputElement;
+
+  const triggerUrlLoad = () => {
+    const val = inputEl.value.trim();
+    if (!val) return;
+    const directUrl = resolveSunoUrl(val);
+    document.getElementById('suno-status-box')!.style.display = 'flex';
+    document.getElementById('suno-track-name')!.textContent = 'SUNO Song';
+    state.setLyrics([]);
+    state.setCustomWords(['AMULISH', 'FEVER', 'BEAT', 'SONIC', '電撃', '爆発']);
+    audio.loadMusic(directUrl, (pct) => updateAudioProgress(pct));
+  };
+
+  loadUrlBtn.addEventListener('click', triggerUrlLoad);
+  inputEl.addEventListener('keydown', e => { if (e.key === 'Enter') triggerUrlLoad(); });
 
   // Bookmarklet copy
   document.getElementById('bm-copy')!.addEventListener('click', async () => {
@@ -374,8 +435,8 @@ function updateAudioProgress(pct: number) {
   }
 
   const displayPct = Math.max(0, Math.min(100, pct));
-  if (fill) fill.style.width = Math.max(4, displayPct) + '%';
-  if (txt) txt.textContent = displayPct > 0 ? displayPct + '%' : '準備中... (STARTで起動)';
+  if (fill) fill.style.width = Math.max(6, displayPct) + '%';
+  if (txt) txt.textContent = displayPct > 0 ? displayPct + '%' : '読込中... (STARTで起動)';
   if (displayPct >= 100 && title) {
     (title as HTMLElement).textContent = '✅ SUNO曲の読み込み完了！';
     (title as HTMLElement).style.color = '#00ff66';
