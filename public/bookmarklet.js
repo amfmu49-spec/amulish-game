@@ -1,9 +1,45 @@
 (function () {
   (async function () {
-    const VER = 'v2.2.2';
+    const VER = 'v2.2.3';
     const AMULISH_URL = 'https://amfmu49-spec.github.io/amulish-game/';
 
-    // --- Get auth token (same as AMUVI) ---
+    // --- Show toast/overlay notification on SUNO page ---
+    const overlay = document.createElement('div');
+    overlay.id = 'amulish-bookmarklet-overlay';
+    Object.assign(overlay.style, {
+      position: 'fixed',
+      top: '20px',
+      right: '20px',
+      zIndex: '999999',
+      background: 'rgba(10, 10, 26, 0.95)',
+      color: '#fff',
+      border: '2px solid #00f0ff',
+      borderRadius: '12px',
+      padding: '16px 20px',
+      fontFamily: 'sans-serif',
+      boxShadow: '0 0 30px rgba(0, 240, 255, 0.4)',
+      maxWidth: '360px',
+      transition: 'all 0.3s ease'
+    });
+    overlay.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <span style="font-size:20px;">⚡</span>
+        <strong style="color:#00f0ff;font-size:16px;">AMULISH ${VER}</strong>
+      </div>
+      <div id="amulish-bm-status" style="font-size:13px;color:#ccc;margin-bottom:12px;">SUNOデータを取得中...</div>
+      <div id="amulish-bm-actions" style="display:flex;gap:8px;"></div>
+    `;
+    document.body.appendChild(overlay);
+
+    function setStatus(msg, isError = false) {
+      const el = document.getElementById('amulish-bm-status');
+      if (el) {
+        el.textContent = msg;
+        if (isError) el.style.color = '#ff4444';
+      }
+    }
+
+    // --- Helper Functions ---
     function getCookie(n) {
       let e = `; ${document.cookie}`.split(`; ${n}=`);
       return e.length >= 2 ? e.pop().split(';').shift() : null;
@@ -43,7 +79,8 @@
       if (mm) songId = mm[1];
     }
     if (!songId) {
-      alert(`[AMULISH ${VER}] 曲IDを検出できませんでした。\nsuno.com/song/... のページで実行してください。`);
+      setStatus('❌ 曲IDを検出できませんでした。suno.com/song/... のページで実行してください。', true);
+      setTimeout(() => overlay.remove(), 5000);
       return;
     }
 
@@ -51,6 +88,7 @@
     const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
     // --- Get audio URL ---
+    setStatus('🎵 音源と歌詞を取得中...');
     let audioUrl = `https://cdn1.suno.ai/${songId}.mp3`;
     try {
       const res = await fetch(`https://studio-api.prod.suno.com/api/clip/${songId}`, { headers });
@@ -101,11 +139,33 @@
     const title = (document.title || '').replace(/[|\u2013\-].*/, '').trim() || 'SUNO';
 
     // --- Open AMULISH ---
-    let url = `${AMULISH_URL}?audio=${encodeURIComponent(audioUrl)}&title=${encodeURIComponent(title)}`;
-    if (srtText) url += `&lyrics=${encodeURIComponent(srtText.substring(0, 4000))}`;
-    else if (plainLyrics) url += `&lyrics=${encodeURIComponent(plainLyrics.substring(0, 3000))}`;
+    let targetUrl = `${AMULISH_URL}?audio=${encodeURIComponent(audioUrl)}&title=${encodeURIComponent(title)}`;
+    if (srtText) targetUrl += `&lyrics=${encodeURIComponent(srtText.substring(0, 4000))}`;
+    else if (plainLyrics) targetUrl += `&lyrics=${encodeURIComponent(plainLyrics.substring(0, 3000))}`;
 
-    console.log(`[AMULISH ${VER}] SRT lines: ${srtText ? srtText.split('\n\n').length : 0}, audio: ${audioUrl}`);
-    window.open(url, '_blank');
+    const lineCount = srtText ? srtText.split('\n\n').length : (plainLyrics ? plainLyrics.split('\n').length : 0);
+    setStatus(`✅ 準備完了！歌詞: ${lineCount}行 (${srtText ? 'SRT同期' : 'テキスト'})`);
+
+    const actions = document.getElementById('amulish-bm-actions');
+    if (actions) {
+      actions.innerHTML = `
+        <a href="${targetUrl}" target="_blank" style="flex:1;background:linear-gradient(135deg,#00f0ff,#7000ff);color:#fff;text-align:center;padding:10px 14px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:13px;display:inline-block;">🎮 ゲームを開始 (別タブ)</a>
+        <button id="amulish-direct-btn" style="background:#222;color:#fff;border:1px solid #444;padding:10px;border-radius:8px;cursor:pointer;font-size:12px;">Direct</button>
+      `;
+
+      document.getElementById('amulish-direct-btn').onclick = () => {
+        window.location.href = targetUrl;
+      };
+    }
+
+    // Auto navigate after 1.5 seconds if pop-up blocked window.open
+    setTimeout(() => {
+      const win = window.open(targetUrl, '_blank');
+      if (!win || win.closed || typeof win.closed === 'undefined') {
+        // Pop-up blocked, redirect directly in current tab
+        window.location.href = targetUrl;
+      }
+    }, 500);
+
   })();
 })();
