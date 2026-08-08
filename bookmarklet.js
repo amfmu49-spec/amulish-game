@@ -1,6 +1,6 @@
 (function () {
   (async function () {
-    const VER = 'v2.4.1';
+    const VER = 'v2.4.2';
     const AMULISH_URL = 'https://amfmu49-spec.github.io/amulish-game/';
 
     // --- Show toast/overlay notification on SUNO page ---
@@ -137,35 +137,46 @@
 
     // --- Get title ---
     const title = (document.title || '').replace(/[|\u2013\-].*/, '').trim() || 'SUNO';
+    const finalLyrics = srtText || plainLyrics;
 
-    // --- Open AMULISH ---
-    let targetUrl = `${AMULISH_URL}?audio=${encodeURIComponent(audioUrl)}&title=${encodeURIComponent(title)}`;
-    if (srtText) targetUrl += `&lyrics=${encodeURIComponent(srtText.substring(0, 4000))}`;
-    else if (plainLyrics) targetUrl += `&lyrics=${encodeURIComponent(plainLyrics.substring(0, 3000))}`;
+    // --- Prepare Compact URL (Prevent URL Too Long 414 error!) ---
+    // Keep URL under 300 chars. Pass large lyrics via window.name JSON payload
+    const compactUrl = `${AMULISH_URL}?audio=${encodeURIComponent(audioUrl)}&title=${encodeURIComponent(title)}`;
+    const payloadStr = JSON.stringify({ audio: audioUrl, title, lyrics: finalLyrics });
 
     const lineCount = srtText ? srtText.split('\n\n').length : (plainLyrics ? plainLyrics.split('\n').length : 0);
     setStatus(`✅ 準備完了！歌詞: ${lineCount}行 (${srtText ? 'SRT同期' : 'テキスト'})`);
 
+    const openGame = (isSameTab = false) => {
+      if (isSameTab) {
+        window.name = payloadStr;
+        window.location.href = compactUrl;
+      } else {
+        const win = window.open(compactUrl, '_blank');
+        if (win) {
+          win.name = payloadStr;
+        } else {
+          window.name = payloadStr;
+          window.location.href = compactUrl;
+        }
+      }
+    };
+
     const actions = document.getElementById('amulish-bm-actions');
     if (actions) {
       actions.innerHTML = `
-        <a href="${targetUrl}" target="_blank" style="flex:1;background:linear-gradient(135deg,#00f0ff,#7000ff);color:#fff;text-align:center;padding:10px 14px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:13px;display:inline-block;">🎮 ゲームを開始 (別タブ)</a>
+        <button id="amulish-open-tab-btn" style="flex:1;background:linear-gradient(135deg,#00f0ff,#7000ff);color:#fff;text-align:center;padding:10px 14px;border:none;border-radius:8px;font-weight:bold;font-size:13px;cursor:pointer;">🎮 ゲームを開始 (別タブ)</button>
         <button id="amulish-direct-btn" style="background:#222;color:#fff;border:1px solid #444;padding:10px;border-radius:8px;cursor:pointer;font-size:12px;">Direct</button>
       `;
 
-      document.getElementById('amulish-direct-btn').onclick = () => {
-        window.location.href = targetUrl;
-      };
+      document.getElementById('amulish-open-tab-btn').onclick = () => openGame(false);
+      document.getElementById('amulish-direct-btn').onclick = () => openGame(true);
     }
 
-    // Auto navigate after 1.5 seconds if pop-up blocked window.open
+    // Auto navigate after 1秒
     setTimeout(() => {
-      const win = window.open(targetUrl, '_blank');
-      if (!win || win.closed || typeof win.closed === 'undefined') {
-        // Pop-up blocked, redirect directly in current tab
-        window.location.href = targetUrl;
-      }
-    }, 500);
+      openGame(false);
+    }, 1000);
 
   })();
 })();
