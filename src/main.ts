@@ -8,7 +8,7 @@ import { AudioEngine } from './audioEngine';
 import { Renderer } from './renderer';
 import { GameState } from './gameState';
 
-const APP_VERSION = 'v2.4.1';
+const APP_VERSION = 'v2.4.2';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d', { alpha: false })!;
@@ -45,26 +45,46 @@ function resolveSunoUrl(rawUrl: string): string {
   return rawUrl;
 }
 
-// ---- Check URL params (from bookmarklet) ----
+// ---- Check URL params & window.name payload (from bookmarklet) ----
+let payloadAudio = '';
+let payloadTitle = '';
+let payloadLyrics = '';
+
+// Try reading large payload from window.name
+try {
+  if (window.name && window.name.startsWith('{')) {
+    const data = JSON.parse(window.name);
+    if (data.audio || data.lyrics) {
+      payloadAudio = data.audio || '';
+      payloadTitle = data.title || '';
+      payloadLyrics = data.lyrics || '';
+      console.log('[AMULISH] Loaded payload from window.name, lyrics length:', payloadLyrics.length);
+    }
+  }
+} catch (e) {}
+
+// Fallback to URL search / hash params if window.name wasn't used
 const params = new URLSearchParams(location.search);
-const rawAudio = params.get('audio');
+const hashParams = new URLSearchParams(location.hash.startsWith('#') ? location.hash.substring(1) : '');
+
+const rawAudio = payloadAudio || params.get('audio') || hashParams.get('audio');
 const urlAudio = rawAudio ? resolveSunoUrl(rawAudio) : null;
-const urlTitle = params.get('title') || 'SUNO Track';
-const urlLyrics = params.get('lyrics');
-const urlSrt = params.get('srt');
+const urlTitle = payloadTitle || params.get('title') || hashParams.get('title') || 'SUNO Track';
+const urlLyrics = payloadLyrics || params.get('lyrics') || hashParams.get('lyrics');
+const urlSrt = params.get('srt') || hashParams.get('srt');
 const urlDebug = params.get('dbg');
 
 let loadedLyrics: LyricLine[] = [];
 let debugMsg = '';
 
 if (urlLyrics) {
-  const raw = decodeURIComponent(urlLyrics);
+  const raw = urlLyrics.includes('%') ? decodeURIComponent(urlLyrics) : urlLyrics;
   console.log('[AMULISH] Raw lyrics received:', raw.substring(0, 300));
   loadedLyrics = parseAnyLyrics(raw);
   console.log('[AMULISH] Parsed lyrics count:', loadedLyrics.length, loadedLyrics.slice(0, 5).map(l => l.text));
   debugMsg = `歌詞取得OK: ${loadedLyrics.length}フレーズ`;
 } else if (urlSrt) {
-  const raw = decodeURIComponent(urlSrt);
+  const raw = urlSrt.includes('%') ? decodeURIComponent(urlSrt) : urlSrt;
   loadedLyrics = parseAnyLyrics(raw);
   debugMsg = `SRT取得OK: ${loadedLyrics.length}フレーズ`;
 } else if (urlDebug) {
