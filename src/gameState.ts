@@ -315,14 +315,16 @@ export class GameState {
     }
 
     if (mode === 'VERTICAL') {
+      // 縦書き: 自機(下)から歌の順番で壊せるように文頭が「一番下」に来る配列にする
+      const charArr = [...cleaned].reverse();
       let curY = 0;
       let maxW = 0;
-      for (const ch of cleaned) {
+      for (const ch of charArr) {
         const fontSize = 32 + Math.random() * 20;
         const font = FONTS[Math.floor(Math.random() * FONTS.length)];
         const pal = PALETTES[Math.floor(Math.random() * PALETTES.length)];
         const rot = (Math.random() - 0.5) * 0.15;
-        const hp = 1; // 1-hit kill for pure爽快感!
+        const hp = 1;
         const relX = (Math.random() - 0.5) * 6;
         chars.push({ ch, relX, relY: curY, fontSize, font, color: pal.text, glow: pal.glow, rot, hp, maxHp: hp, flash: 0 });
         curY += fontSize * 1.08;
