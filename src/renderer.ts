@@ -39,31 +39,6 @@ export class Renderer {
     this._stars(state.isFever);
     if (state.isFever || state.combo >= 50) this._speedlines(state.combo, state.isFever);
 
-    // Items
-    for (const item of state.items) {
-      ctx.save();
-      ctx.translate(item.x, item.y);
-      // Pulsing glow
-      const pulse = 1 + Math.sin(Date.now() * 0.008) * 0.15;
-      ctx.scale(pulse, pulse);
-
-      ctx.shadowColor = item.color;
-      ctx.shadowBlur = 16;
-      ctx.fillStyle = 'rgba(10,15,30,0.85)';
-      ctx.strokeStyle = item.color;
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.arc(0, 0, item.r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.font = `bold 16px sans-serif`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.shadowBlur = 0;
-      ctx.fillText(item.label, 0, 1);
-      ctx.restore();
-    }
-
     // Enemies
     for (const e of state.enemies) {
       for (const c of e.chars) {
@@ -170,9 +145,9 @@ export class Renderer {
       ctx.restore();
     }
 
-    // Player (with invulnerability blinking & shield aura)
+    // Player (with invulnerability blinking)
     if (state.invincibleTimer <= 0 || Math.floor(Date.now() / 80) % 2 === 0) {
-      this._player(state.px, state.py, state.shotLevel(), state.isFever, state.shieldTimer > 0);
+      this._player(state.px, state.py, state.shotLevel(), state.isFever);
     }
 
     // HUD
@@ -229,21 +204,10 @@ export class Renderer {
     ctx.stroke();
   }
 
-  private _player(px: number, py: number, _level: number, fever: boolean, hasShield = false) {
+  private _player(px: number, py: number, _level: number, fever: boolean) {
     const ctx = this.ctx;
     ctx.save();
     ctx.translate(px, py);
-
-    // Shield barrier aura
-    if (hasShield) {
-      ctx.strokeStyle = '#00f3ff';
-      ctx.shadowColor = '#00f3ff';
-      ctx.shadowBlur = 18;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(0, 0, 32 + Math.sin(Date.now() * 0.01) * 3, 0, Math.PI * 2);
-      ctx.stroke();
-    }
 
     // Engine glow
     const grad = ctx.createRadialGradient(0, 12, 0, 0, 12, 28);
@@ -304,7 +268,7 @@ export class Renderer {
       ctx.beginPath(); ctx.roundRect(bX, 14, bW * (state.fever / 100), 6, 3); ctx.fill();
     }
 
-    // HP Bar (Player Health Bar above bottom or below top HUD)
+    // HP Bar
     const hpW = 120;
     const hpX = 12;
     const hpY = 66;

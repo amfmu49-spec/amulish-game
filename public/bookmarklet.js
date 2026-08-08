@@ -1,6 +1,6 @@
 (function () {
   (async function () {
-    const VER = 'v2.4.2';
+    const VER = 'v2.4.4';
     const AMULISH_URL = 'https://amfmu49-spec.github.io/amulish-game/';
 
     // --- Show toast/overlay notification on SUNO page ---
@@ -139,25 +139,28 @@
     const title = (document.title || '').replace(/[|\u2013\-].*/, '').trim() || 'SUNO';
     const finalLyrics = srtText || plainLyrics;
 
-    // --- Prepare Compact URL (Prevent URL Too Long 414 error!) ---
-    // Keep URL under 300 chars. Pass large lyrics via window.name JSON payload
-    const compactUrl = `${AMULISH_URL}?audio=${encodeURIComponent(audioUrl)}&title=${encodeURIComponent(title)}`;
-    const payloadStr = JSON.stringify({ audio: audioUrl, title, lyrics: finalLyrics });
+    // --- Construct Safe Target URL with Hash ---
+    // Note: Search params (?audio=...&title=...) are sent to server.
+    // Hash (#lyrics=...) is client-side ONLY, so 414 URI Too Long error NEVER happens!
+    let targetUrl = `${AMULISH_URL}?audio=${encodeURIComponent(audioUrl)}&title=${encodeURIComponent(title)}`;
+    if (finalLyrics) {
+      targetUrl += `#lyrics=${encodeURIComponent(finalLyrics)}`;
+    }
 
+    const payloadStr = JSON.stringify({ audio: audioUrl, title, lyrics: finalLyrics });
     const lineCount = srtText ? srtText.split('\n\n').length : (plainLyrics ? plainLyrics.split('\n').length : 0);
     setStatus(`✅ 準備完了！歌詞: ${lineCount}行 (${srtText ? 'SRT同期' : 'テキスト'})`);
 
     const openGame = (isSameTab = false) => {
+      window.name = payloadStr;
       if (isSameTab) {
-        window.name = payloadStr;
-        window.location.href = compactUrl;
+        window.location.href = targetUrl;
       } else {
-        const win = window.open(compactUrl, '_blank');
+        const win = window.open(targetUrl, '_blank');
         if (win) {
-          win.name = payloadStr;
+          try { win.name = payloadStr; } catch (e) {}
         } else {
-          window.name = payloadStr;
-          window.location.href = compactUrl;
+          window.location.href = targetUrl;
         }
       }
     };

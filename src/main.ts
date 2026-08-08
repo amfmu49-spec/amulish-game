@@ -8,7 +8,7 @@ import { AudioEngine } from './audioEngine';
 import { Renderer } from './renderer';
 import { GameState } from './gameState';
 
-const APP_VERSION = 'v2.4.2';
+const APP_VERSION = 'v2.4.4';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d', { alpha: false })!;
@@ -45,7 +45,7 @@ function resolveSunoUrl(rawUrl: string): string {
   return rawUrl;
 }
 
-// ---- Check URL params & window.name payload (from bookmarklet) ----
+// ---- Check URL search, hash (#lyrics=...), and window.name payload ----
 let payloadAudio = '';
 let payloadTitle = '';
 let payloadLyrics = '';
@@ -63,16 +63,25 @@ try {
   }
 } catch (e) {}
 
-// Fallback to URL search / hash params if window.name wasn't used
-const params = new URLSearchParams(location.search);
-const hashParams = new URLSearchParams(location.hash.startsWith('#') ? location.hash.substring(1) : '');
+// Read search & hash parameters
+const searchParams = new URLSearchParams(location.search);
+let rawHash = location.hash;
+if (rawHash.startsWith('#')) rawHash = rawHash.substring(1);
+const hashParams = new URLSearchParams(rawHash);
 
-const rawAudio = payloadAudio || params.get('audio') || hashParams.get('audio');
+// Hash direct lookup for #lyrics= or #lrc=
+let hashLyrics = hashParams.get('lyrics') || hashParams.get('lrc');
+if (!hashLyrics && rawHash.includes('lyrics=')) {
+  const match = rawHash.match(/lyrics=([^&]+)/);
+  if (match) hashLyrics = match[1];
+}
+
+const rawAudio = payloadAudio || searchParams.get('audio') || hashParams.get('audio');
 const urlAudio = rawAudio ? resolveSunoUrl(rawAudio) : null;
-const urlTitle = payloadTitle || params.get('title') || hashParams.get('title') || 'SUNO Track';
-const urlLyrics = payloadLyrics || params.get('lyrics') || hashParams.get('lyrics');
-const urlSrt = params.get('srt') || hashParams.get('srt');
-const urlDebug = params.get('dbg');
+const urlTitle = payloadTitle || searchParams.get('title') || hashParams.get('title') || 'SUNO Track';
+const urlLyrics = payloadLyrics || hashLyrics || searchParams.get('lyrics');
+const urlSrt = searchParams.get('srt') || hashParams.get('srt');
+const urlDebug = searchParams.get('dbg');
 
 let loadedLyrics: LyricLine[] = [];
 let debugMsg = '';
