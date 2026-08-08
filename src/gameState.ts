@@ -435,26 +435,29 @@ export class GameState {
       const maxCols = len > 12 ? 5 : (len > 8 ? 4 : 3);
       let col = 0, row = 0;
       const baseFontSize = len > 12 ? 30 : 36;
+      const rowHeight = baseFontSize * 1.15;
 
+      const charRows: { charObj: Char; rowIdx: number }[] = [];
       let maxRowW = 0;
-      let totalH = 0;
       const rowWidths: number[] = [];
       let curRowW = 0;
 
       for (let i = 0; i < len; i++) {
         const ch = cleaned[i];
-        const fontSize = baseFontSize + Math.random() * 12;
+        const fontSize = baseFontSize + Math.random() * 10;
         const font = FONTS[Math.floor(Math.random() * FONTS.length)];
         const pal = PALETTES[Math.floor(Math.random() * PALETTES.length)];
         const rot = (Math.random() - 0.5) * 0.2;
         const hp = /[\u4e00-\u9faf]/.test(ch) ? 3 : /[\u3040-\u30ff]/.test(ch) ? 2 : 1;
         const charW = fontSize * 1.05;
-        const charH = fontSize * 1.1;
 
-        const relX = curRowW;
-        const relY = row * charH;
+        const charObj: Char = {
+          ch, relX: curRowW, relY: row * rowHeight,
+          fontSize, font, color: pal.text, glow: pal.glow, rot, hp, maxHp: hp, flash: 0
+        };
 
-        chars.push({ ch, relX, relY, fontSize, font, color: pal.text, glow: pal.glow, rot, hp, maxHp: hp, flash: 0 });
+        chars.push(charObj);
+        charRows.push({ charObj, rowIdx: row });
 
         curRowW += charW;
         col++;
@@ -466,19 +469,14 @@ export class GameState {
           row++;
         }
       }
-      totalH = row * (baseFontSize * 1.15);
+      const totalH = row * rowHeight;
+      const offsetY = -totalH / 2;
 
-      // Center chars inside block
-      let charIdx = 0;
-      for (let r = 0; r < rowWidths.length; r++) {
-        const rW = rowWidths[r];
-        const offsetX = -rW / 2;
-        const offsetY = -totalH / 2;
-        while (charIdx < chars.length && chars[charIdx].relY < (r + 0.9) * (baseFontSize * 1.1)) {
-          chars[charIdx].relX += offsetX;
-          chars[charIdx].relY += offsetY;
-          charIdx++;
-        }
+      // Safely apply offsets using preserved rowIdx
+      for (const item of charRows) {
+        const rW = rowWidths[item.rowIdx] || maxRowW;
+        item.charObj.relX -= rW / 2;
+        item.charObj.relY += offsetY;
       }
 
       const spawnX = Math.max(maxRowW / 2 + 20, Math.min(this.W - maxRowW / 2 - 20, Math.random() * this.W));
