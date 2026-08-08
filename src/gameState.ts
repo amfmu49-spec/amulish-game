@@ -386,34 +386,139 @@ export class GameState {
     }
 
     const chars: Char[] = [];
-    let curX = 0, maxH = 0;
+    const len = cleaned.length;
 
-    for (const ch of cleaned) {
-      const fontSize = 34 + Math.random() * 22;
-      const font = FONTS[Math.floor(Math.random() * FONTS.length)];
-      const pal = PALETTES[Math.floor(Math.random() * PALETTES.length)];
-      const rot = (Math.random() - 0.5) * 0.25;
-      const hp = /[\u4e00-\u9faf]/.test(ch) ? 3 : /[\u3040-\u30ff]/.test(ch) ? 2 : 1;
-      const relY = (Math.random() - 0.5) * 8;
-      const charW = fontSize * 1.1;
-      chars.push({ ch, relX: curX, relY, fontSize, font, color: pal.text, glow: pal.glow, rot, hp, maxHp: hp, flash: 0 });
-      curX += charW;
-      if (fontSize + Math.abs(relY) > maxH) maxH = fontSize + Math.abs(relY);
+    // Determine layout mode:
+    // - VERTICAL: 30% chance for Japanese text, or 20% general
+    // - BLOCK: for long text (> 6 chars) or 40% chance
+    // - HORIZONTAL: for short text (<= 6 chars)
+    let mode: 'HORIZONTAL' | 'BLOCK' | 'VERTICAL' = 'HORIZONTAL';
+    const rand = Math.random();
+    const hasJapanese = /[\u3040-\u30ff\u4e00-\u9faf]/.test(cleaned);
+
+    if (hasJapanese && rand < 0.32) {
+      mode = 'VERTICAL';
+    } else if (len > 6 || rand < 0.45) {
+      mode = 'BLOCK';
     }
 
-    // Center
-    const half = curX / 2;
-    for (const c of chars) c.relX -= half;
+    if (mode === 'VERTICAL') {
+      // ---- 縦書き (VERTICAL / TATEGAKI) ----
+      let curY = 0;
+      let maxW = 0;
+      for (const ch of cleaned) {
+        const fontSize = 32 + Math.random() * 20;
+        const font = FONTS[Math.floor(Math.random() * FONTS.length)];
+        const pal = PALETTES[Math.floor(Math.random() * PALETTES.length)];
+        const rot = (Math.random() - 0.5) * 0.15;
+        const hp = /[\u4e00-\u9faf]/.test(ch) ? 3 : /[\u3040-\u30ff]/.test(ch) ? 2 : 1;
+        const relX = (Math.random() - 0.5) * 6;
+        chars.push({ ch, relX, relY: curY, fontSize, font, color: pal.text, glow: pal.glow, rot, hp, maxHp: hp, flash: 0 });
+        curY += fontSize * 1.08;
+        if (fontSize > maxW) maxW = fontSize;
+      }
+      // Center vertical stack
+      const halfH = curY / 2;
+      for (const c of chars) c.relY -= halfH;
 
-    const spawnX = Math.max(half + 10, Math.min(this.W - half - 10, Math.random() * this.W));
+      const spawnX = Math.max(maxW + 20, Math.min(this.W - maxW - 20, Math.random() * this.W));
+      this.enemies.push({
+        id: Math.random().toString(36).slice(2),
+        x: spawnX, y: -(curY + 20),
+        vx: (Math.random() - 0.5) * 1.0,
+        vy: 0.9 + Math.random() * 0.7,
+        chars, w: maxW * 1.2, h: curY,
+      });
 
-    this.enemies.push({
-      id: Math.random().toString(36).slice(2),
-      x: spawnX, y: -(maxH + 20),
-      vx: (Math.random() - 0.5) * 1.2,
-      vy: 1.0 + Math.random() * 0.7,
-      chars, w: curX, h: maxH,
-    });
+    } else if (mode === 'BLOCK') {
+      // ---- 固まり・改行 (BLOCK / MULTILINE) ----
+      const maxCols = len > 12 ? 5 : (len > 8 ? 4 : 3);
+      let col = 0, row = 0;
+      const baseFontSize = len > 12 ? 30 : 36;
+
+      let maxRowW = 0;
+      let totalH = 0;
+      const rowWidths: number[] = [];
+      let curRowW = 0;
+
+      for (let i = 0; i < len; i++) {
+        const ch = cleaned[i];
+        const fontSize = baseFontSize + Math.random() * 12;
+        const font = FONTS[Math.floor(Math.random() * FONTS.length)];
+        const pal = PALETTES[Math.floor(Math.random() * PALETTES.length)];
+        const rot = (Math.random() - 0.5) * 0.2;
+        const hp = /[\u4e00-\u9faf]/.test(ch) ? 3 : /[\u3040-\u30ff]/.test(ch) ? 2 : 1;
+        const charW = fontSize * 1.05;
+        const charH = fontSize * 1.1;
+
+        const relX = curRowW;
+        const relY = row * charH;
+
+        chars.push({ ch, relX, relY, fontSize, font, color: pal.text, glow: pal.glow, rot, hp, maxHp: hp, flash: 0 });
+
+        curRowW += charW;
+        col++;
+        if (col >= maxCols || i === len - 1) {
+          rowWidths.push(curRowW);
+          if (curRowW > maxRowW) maxRowW = curRowW;
+          curRowW = 0;
+          col = 0;
+          row++;
+        }
+      }
+      totalH = row * (baseFontSize * 1.15);
+
+      // Center chars inside block
+      let charIdx = 0;
+      for (let r = 0; r < rowWidths.length; r++) {
+        const rW = rowWidths[r];
+        const offsetX = -rW / 2;
+        const offsetY = -totalH / 2;
+        while (charIdx < chars.length && chars[charIdx].relY < (r + 0.9) * (baseFontSize * 1.1)) {
+          chars[charIdx].relX += offsetX;
+          chars[charIdx].relY += offsetY;
+          charIdx++;
+        }
+      }
+
+      const spawnX = Math.max(maxRowW / 2 + 20, Math.min(this.W - maxRowW / 2 - 20, Math.random() * this.W));
+      this.enemies.push({
+        id: Math.random().toString(36).slice(2),
+        x: spawnX, y: -(totalH + 20),
+        vx: (Math.random() - 0.5) * 1.1,
+        vy: 0.9 + Math.random() * 0.6,
+        chars, w: maxRowW, h: totalH,
+      });
+
+    } else {
+      // ---- 横一列 (HORIZONTAL) ----
+      let curX = 0, maxH = 0;
+      for (const ch of cleaned) {
+        const fontSize = 34 + Math.random() * 20;
+        const font = FONTS[Math.floor(Math.random() * FONTS.length)];
+        const pal = PALETTES[Math.floor(Math.random() * PALETTES.length)];
+        const rot = (Math.random() - 0.5) * 0.2;
+        const hp = /[\u4e00-\u9faf]/.test(ch) ? 3 : /[\u3040-\u30ff]/.test(ch) ? 2 : 1;
+        const relY = (Math.random() - 0.5) * 6;
+        const charW = fontSize * 1.08;
+        chars.push({ ch, relX: curX, relY, fontSize, font, color: pal.text, glow: pal.glow, rot, hp, maxHp: hp, flash: 0 });
+        curX += charW;
+        if (fontSize + Math.abs(relY) > maxH) maxH = fontSize + Math.abs(relY);
+      }
+
+      // Center
+      const half = curX / 2;
+      for (const c of chars) c.relX -= half;
+
+      const spawnX = Math.max(half + 10, Math.min(this.W - half - 10, Math.random() * this.W));
+      this.enemies.push({
+        id: Math.random().toString(36).slice(2),
+        x: spawnX, y: -(maxH + 20),
+        vx: (Math.random() - 0.5) * 1.2,
+        vy: 1.0 + Math.random() * 0.7,
+        chars, w: curX, h: maxH,
+      });
+    }
   }
 
   private _fire() {
