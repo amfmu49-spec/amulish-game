@@ -322,7 +322,7 @@ export class GameState {
         const font = FONTS[Math.floor(Math.random() * FONTS.length)];
         const pal = PALETTES[Math.floor(Math.random() * PALETTES.length)];
         const rot = (Math.random() - 0.5) * 0.15;
-        const hp = /[\u4e00-\u9faf]/.test(ch) ? 3 : /[\u3040-\u30ff]/.test(ch) ? 2 : 1;
+        const hp = 1; // 1-hit kill for pure爽快感!
         const relX = (Math.random() - 0.5) * 6;
         chars.push({ ch, relX, relY: curY, fontSize, font, color: pal.text, glow: pal.glow, rot, hp, maxHp: hp, flash: 0 });
         curY += fontSize * 1.08;
@@ -357,7 +357,7 @@ export class GameState {
         const font = FONTS[Math.floor(Math.random() * FONTS.length)];
         const pal = PALETTES[Math.floor(Math.random() * PALETTES.length)];
         const rot = (Math.random() - 0.5) * 0.2;
-        const hp = /[\u4e00-\u9faf]/.test(ch) ? 3 : /[\u3040-\u30ff]/.test(ch) ? 2 : 1;
+        const hp = 1; // 1-hit kill!
         const charW = fontSize * 1.05;
 
         const charObj: Char = {
@@ -403,7 +403,7 @@ export class GameState {
         const font = FONTS[Math.floor(Math.random() * FONTS.length)];
         const pal = PALETTES[Math.floor(Math.random() * PALETTES.length)];
         const rot = (Math.random() - 0.5) * 0.2;
-        const hp = /[\u4e00-\u9faf]/.test(ch) ? 3 : /[\u3040-\u30ff]/.test(ch) ? 2 : 1;
+        const hp = 1; // 1-hit kill!
         const relY = (Math.random() - 0.5) * 6;
         const charW = fontSize * 1.08;
         chars.push({ ch, relX: curX, relY, fontSize, font, color: pal.text, glow: pal.glow, rot, hp, maxHp: hp, flash: 0 });
